@@ -1,0 +1,421 @@
+# HDFS  
+###大数据学习线路图
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+----------
+###缩略词  
+NN - NameNode  
+SNN - Secondry NameNode  
+DN - DataNode  
+
+
+----------
+
+###概念
+HDFS-Hadoop Distributed File System
+----------
+* 为什么要有HDFS  
+随着区块链、大数据等技术的推动，全球数据量正在无限制地扩展和增加。分布式存储的兴起与互联网的发展密不可分，互联网公司由于其大数据、轻资产的特点，通常使用大规模分布式存储系统
+
+----------
+###设计思想
+* 设计思想
+	* 切块存储
+    当一个文件过大，一个节点存储不下，采用分块存储  
+    （1）Hadoop 1.x 默认块大小为64M  
+    （2）Hadoop 2.x 默认块大小为128M，当块不足128M时，也会单独存一个块
+	* 备份机制
+    块备份默认个数为3，hdfs-site.xml文件dfs.replication参数配置，所有备份地位相同，没有主次之分  
+
+	<img src="https://upload-images.jianshu.io/upload_images/22827736-53da53452556d381.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+> 1、如果集群节点只有两个，但是dfs.replication=3， 实际存储几个？  
+> 实际存储2个，当集群的几点数>=3时，会复制这个副本，最终达到3个  
+> 
+> 2、 达到如果节点有4个，副本3个，有一个副本的机器宕机，只是后发现副本的个数小于设定的个数，就会进行复制，达到3个副本
+> 如果宕机的节点恢复了，集群等待一段时间发现副本是4个，集群随机删除一个
+> 
+> 3、备份越多越好吗？
+> 理论上来说，副本越多，数据安全性越高，
+> 但是副本越多，占用过多的存储资源，造成集群维护变得困难  
+> 100个node，副本50个，HDFS系统需要同时维护50个副本，在50个副本中，一旦有节点宕机，就需要进行复制工作
+
+----------
+###整体架构  
+* 架构  
+HDFS 采用Master/Slave的架构来存储数据，一个主节点多个从节点
+这种架构主要由四个部分组成，分别为HDFS Client、NameNode、DataNode和Secondary
+	* Client
+	    * 文件切分  
+      		文件上传时，Client将文件切分为一个一个的block，再进行存储
+	    * 与NN交互，获取文件的位置信息
+	    * 与DN交互，读取或者写入数据
+	    * 管理HDFS
+	    * 访问HDFS
+     
+	* NameNode  
+		* 存储元数据    
+        一条元数据大小150byte左右    
+	    * 处理客户端读写请求  
+	    * 负责分配数据块的存储节点，管理数据块的映射信息  
+	    * 负载均衡  
+	* Secondary NameNode
+		并非NN的热备份，当NN宕机时，它并不能马上替换掉NN并提供服务  
+		但是，SNN中存储的数据和NN基本相同    
+		* 辅助NN，分担其工作量  
+		* 进行checkpoint， 帮助NN进行元数据合并，定期合并fsimage和fsedits，并推送给NN  
+		* 帮助NN做元数据备份，在紧急情况下，可辅助恢复NN，但是无法成为NN（这里有别于高可用组网中standby NN）
+		
+		> 当NN宕机时，SNN不能主动切换为NN，可进行手动切换：  
+		> 在实验室环境，可以在Hadoop1停止NN，删除name目录，将Hadoop2的 SNN拷贝到hadoop1并重命名为name，hadoop1的NN进程可以经常启动
+
+
+	* DataNode  
+		DN就是Slave从服务，NN下达命令，DN负责执行实际的操作  
+		* 负责真正的数据存储，存储实际的数据块block  
+		* 执行数据块的读/写操作  
+		* 定期向NN发送心跳报告（状态信息，块位置信息）
+
+		> 数据块位置信息补充说明：  
+		> 数据块存储在DN上，但每个DN只知道自己节点上存储了哪些块儿，并不知道这些块儿分别属于哪个文件，NN才知道这些块属于哪个文件（存储的数据和block的对应关系）  
+		NN记录在磁盘中的元数据不包含block块存储的位置信息，但包含数据与块儿的对应关系，NN记录元数据时会如下存储：
+		xxxxx.tar.gz：blk_1:[ ], blk_2[ ]  
+		数据块的存储信息会先存为一个空的列表，当DN向NN发送块报告的时候，会把对应块的存储节点添加到列表中[ ]。
+		磁盘上的元数据信息永远不保存块的位置信息，只保存一个空列表，快的位置信息时加载到内存后有DN汇报添加上的。
+
+
+----------
+###优点缺点  
+* 适用场景  
+HDFS专门为解决大数据的存储问题而产生
+	*  可存储超大文件(PB级别)
+	*  流式数据访问
+    一次写入，多次读取  
+    数据集通常从数据源复制而来，每次分析都涉及该数据集的大部分甚至全部  
+	* 商用硬件
+    不需要运行在高昂可靠的硬件上，可以运行上普通的商用硬件上，节点的故障不会影响系统的运行  
+
+----------
+* 优点  
+	* 可构建在廉价机器上，成本低
+		* 它通过多副本机制，提高可靠性。
+		* 它提供了容错和恢复机制。比如某一个副本丢失，可以通过其它副本来恢复
+	* 高容错性
+		* 数据自动保存多个副本。它通过增加副本的形式，提高容错性
+		* 某一个副本丢失以后，它可以自动恢复，这是由 HDFS 内部机制实现的，我们不必关心。
+	* 适合批处理 适合离线数据处理
+		* 它是通过移动计算而不是移动数据
+		* 它会把数据位置暴露给计算框架
+	* 适合大数据处理
+		* 处理数据达到 GB、TB、甚至PB级别的数据
+		* 能够处理百万规模以上的文件数量，数量相当之大
+		* 能够处理10K节点的规模
+	* 流式文件访问 不支持数据修改
+		* 一次写入，多次读取。文件一旦写入不能修改，只能追加
+		* 它能保证数据的一致性
+		* 数据块以副本存储，一旦可以修改，需要修改所有副本，十分占资源
+
+
+
+----------
+* 缺点  
+	* 不支持低延时数据访问，查询慢，不支持实时/近实时 
+		* 比如毫秒级的来存储数据，这是不行的，它做不到
+		* 它适合高吞吐率的场景，就是在某一时间内写入大量的数据。但是它在低延时的情况下是不行的，比如毫秒级以内读取数据，这样它是很难做到的
+	* 不擅长存储大量的小文件 
+		* 小文件存储，寻址时间可能会超过读取数据的时间，不划算，它违反了HDFS的设计目标
+		* 存储大量小文件的话，造成元数据存储量过大，它会占用 NameNode大量的内存来存储文件、目录和块信息。这样是不可取的，因为NameNode的内存总是有限的。一条元数据大小150byte左右
+	* 不支持并发写入、文件随机修改
+		* 一个文件只能有一个写，不允许多个线程同时写
+		* 仅支持数据 append（追加），不支持文件的随机修改  
+
+
+
+----------
+###HDFS应用  
+* 命令行  
+	* HDFS命令方式  
+		* 开启hadoop或hdfs客户端：
+		* 任意目录下： hsdoop fs  
+        这些命令在集群中任意节点都可以做、hdfs文件系统中看到的目录结构只是一个抽象目录树，实际存储在集群的节点上
+		例如：
+		aa.txt        150M         hadoop fs -put aa.txt /
+		会在/目录下看到aa.txt，
+		但是aa.txt 真实存储的时候会进行分块（128M+22M），分两块进行存储
+		假设集群中有5个存储节点，这两个块存储在哪个节点由NameNode进行分配
+
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-842b2f2b9948d1c4.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+	* 支持的命令Shell  
+		这里不一一阐述，类似Linux命令，参考官网链接： 
+		http://hadoop.apache.org/docs/r1.0.4/cn/hdfs_shell.html#ls
+		
+		> FS Shell  
+			cat  
+			chgrp   
+			chmod  
+			chown  
+			copyFromLocal  
+			copyToLocal  
+			cp  
+			du   
+			dus   
+			expunge   
+			get  
+			getmerge   
+			ls  
+			lsr   
+			mkdir   
+			movefromLocal  
+			mv  
+			put   
+			rm   
+			rmr   
+			setrep   
+			stat  
+			tail  
+			test  
+			text  
+			touchz
+
+
+----------
+### 四大机制两大核心  
+
+* 四大机制  
+	* 心跳机制  
+	HDFS是主从架构，所有为了实时的得知dataNode是否存活，必须建立心跳机制，在整个hdfs运行过程中，dataNode会定时的向nameNode发送心跳报告已告知nameNode自己的状态。  
+		* 心跳内容：  
+     		报告自己的存活状态，每次汇报之后都会更新维护的计数信息  
+     		向NN汇报自己的存储的block列表信息：（hdfs-default.xml）  
+			>                <property> 
+			>   				<name>dfs.heartbeat.interval</name 
+			>   				<value>3</value//单位秒，决定datanode向namenode发送心跳报告的间隔时间  
+			> 				</property>
+
+
+		* NN判断一个DN宕机的基准  
+			连续10次接收不到DN的心跳信息，和2次的检查时间。  
+			检查时间：表示在nameNode在接收不到dataNode的心跳时，此时会向dataNode主动发送检查
+			>     <property>
+			>       <name>dfs.namenode.heartbeat.recheck-interval</name>
+			>       <value>300000</value//单位毫秒，5min
+			>     </property>
+ 
+			DN每隔3S向NN发送一次心跳报告，当NN连续10次没有收到DN的心跳报告，判定DN可能死了，但没有断定死亡，只是可能；
+        	这时候，NN主动向DN发送一次检查，5分钟，NN给2次机会，如果一次检查没有返回信息，这是NN会再进行一次，共两次，如果还是获取不到DN的返回信息，这时候才会判定DN死亡。
+        	总判断时间：
+        	计算公式：10dfs.heartbeat.interval + 2*dfs.namenode.heartbeat.recheck-interval+=10*3+2*300=630s=10.5min
+
+	
+	* 安全机制  
+	在HDFS启动的时候，首先会进入安全模式中，当达到规定的要求时，会退出安全模式。在安全模式中，不能执行任何修改元数据的操作  
+		* 如何进入安全模式？  
+		集群启动后分三步骤：  
+		1，namenode将元数据加载到内存中；抽象目录树+数据与块的对应关系  
+		2，namenode接收datanode的心跳报告：获取datanode存活状况+获取block块存放位置信息  
+		3，启动secondnamenode
+		集群在启动过程中，不允许外界对集群进行操作，这时候集群处于安全模式。
+		也就是说，集群在处于安全模式的时候，在加载元数据/获取datanode心跳报告
+		如果集群处于维护或升级时候，可以手动将集群设置为安全模式：hdfs dfsadmiin -safemode enter
+
+		* 安全模式下用户可以做的操作？
+		只有不修改元数据的操作才可以  
+		安全模式下用户可执行的操作：  
+		ls-查看目录  
+		cat-查看文件  
+		get-下载  
+		安全模式下用户不可执行的操作：  
+		mkdir-创建文件夹  
+		put-上传  
+		修改文件名  
+		文件追加   
+
+		* 如何退出安全模式？  
+		自动退出安全模式的条件：  
+			* 如果在集群启动时dfs.namenode.safemode.min.datanodes（启动的dataNode个数）为0时，并且，数据块的最小副本数dfs.namenode.replication.min为1时，此时会退出安全模式，也就是说，集群达到了最小副本数，并且能运行的datanode节点也达到了要求，此时退出安全模式
+			* 启动的dataNode个数为0时，并且所有的数据块的存货率达到0.999f时，集群退出安全模式（副本数达到要求）（99%的机器的心跳报告接收到）
+			>     <property>
+			>      <name>dfs.namenode.safemode.threshold-pct</name>
+			>      <value>0.999f</value>
+			>     </property>
+
+
+		* 手动退出或者进入安全模式
+			* hdfs dfsadmin -safemode enter 进入
+			* hdfs dfsadmin -safemode leave 退出
+			* hdfs dfsadmin -safemode get 查看, 开启返回ON，关闭返回OFF
+			* hdfs dfsadmin -safemode wait 等待自行退出安全模式，没啥用
+
+	* 机架策略   
+		* 默认每个数据块有三个副本：
+			* 第一个副本，放置在离客户端最近的那个机架的任意节点，如果客户端是本机，那就存放在本机（保证有一个副本数），
+			* 第二个副本，放置在跟第一个副本不同机架的任意节点上，（防止机架断电，数据访问不到）
+			* 第三个副本，放置在跟第一个副本相同机架的不同节点上。（在风险度相同的情况下，优先网络传输少的）
+		
+		* 真实生产中，需要手动配置机架策略  
+        真实生产中，我们可以自定义机架策略: 不同节点，不同机架，不同数据中心
+
+        * 修改副本的方法：  
+			* 修改配置文件：
+			>      <property>
+			>     <name>dfs.replication</name>
+			>     <value>3</value>
+			>     </property>
+			* 命令设置： hadoop fs -setrep 3 -R dir  
+
+
+	* 负载均衡  
+        hdfs的负载均衡：表示每一个dataNode存储的数据与其硬件相匹配，即占用率相当
+        每个节点上存储的数据的百分比相差不大，能力越大责任越大。  
+
+		| 总 | 已用 | 占比 |
+	| :-----| ----: | :----: |
+| 5T | 2.5T | 50% |
+| 2T| 1T | 50% |
+| 8T | 4T | 50% 
+
+		在进行文件上传时，会优先选择客户端所在节点，  
+		如果习惯性的使用同一个客户端会造成客户端所在节点存储数据比较多，集群有一个自动的负载均衡操作，只不过这个自动负载均衡操作比较慢，
+		* 自动进行负载均衡：
+  - 集群自动调整负载均衡的带宽：（默认为1M）
+
+		>             <property>
+		>             <name>dfs.datanode.balance.bandwidthPerSec</name>
+		>             <value>1048576</value//1048576byte=1024kb=1M，限制负载均衡的带宽，默认1M/s
+		>             </property>  
+        * 手动开启负载均衡：
+        在集群大的情况下，由于要满足带宽条件，过程十分缓慢，可以通过以下方式手动开启负载均衡：
+        告诉集群进行负载均衡：start-balancer.sh -t 10% 表示节点最大占用率与节点的最小的占用率之间的差值当超过10%时，此时集群不会立刻进行负载均衡，会在集群不忙的时候进行。
+
+		> 负载均衡什么时候发生概率高？  
+		> 在集群中有新增节点时
+
+
+	* 两大核心：
+		* 文件上传：  
+			* 使用HDFS提供的客户端client，向远程的NN发起RPC请求。
+			* NN会检查要创建的文件是否已经存在、创建者是否有权限，成功则会为文件创建一个记录，否则向客户端抛出异常。
+			* 当客户端开始写入文件的时候，客户端会将文件切分成多个packets，并在内部以数据队列“data queue（数据队列）”的形式管理这些packet，并向namenode申请blocks，获取用来存储replicas的合适的datanode列表，列表的大小根据namenode中的replication个数来设定。
+			* client获取block列表之后，开始以pipeline（管道）的形式，将packet写入所有的replicas中，客户端把packet以流的形式写入到第一个datanode中，该datanode把packet存储之后，在将其传递到此pipeline中的下一个datanode，直到最后一个 datanode。
+			* 最后一个 datanode 成功存储之后会返回一个 ack packet（确认队列），在 pipeline 里传递至客户端，在客户端的开发库内部维护着"ack queue"，成功收到 datanode 返回的 ackpacket 后会从"data queue"移除相应的 packet。
+			* 如果传输过程中，有某个datanode出现了故障，那么当前pipeline会被关闭，出现故障的节点，会被剔除此pipeline，剩余的block会继续剩下的的 datanode 中继续以 pipeline 的形式传输，同时 namenode 会分配一个新的 datanode，保持 replicas 设定的数量。
+			* 客户端完成数据的写入后，会对数据流调用close方法，关闭数据流
+			* 只要写入了 dfs.replication.min（最小写入成功的副本数）的复本数（默认为 1），写操作就会成功，并且这个块可以在集群中异步复制，直到达到其目标复本数（dfs.replication的默认值为 3），因为namenode已经知道文件由哪些块组成，所以他在返回成功前只需要等待数据块进行最小量的复制。
+			* 最后当这个文件上传成功后，此时namenode会将预写如日志的操作，同步到内存中  
+			<img src="https://upload-images.jianshu.io/upload_images/22827736-3c2462e92cdeb0b0.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+
+			> 如果上传过程中，如果有一个节点块上传失败，会怎么办？  
+			那么HDFS会立即重试一次，如果还是失败，会将失败的节点从pipeline中剔除，并将失败的节点报告给NameNode
+			比如上图blk_1: Client-DataNode01-02-04
+			如果02失败，则02从pipeline中剔除：Client-DataNode01-04
+			HDFS最终可以忍受最大极限是至少有一个节点上传成功，如果节点全都失败，这时候会向NameNode重新申请，重新构建pipeline
+			最终文件上传过程中保证至少有一份即可，剩下的副本在上传成功后，进行内部复制。
+
+			> 数据上传的时候，为什么优先选择客户端所在节点？  
+			如果客户端所在节点是数据节点，一般情况下会返回客户端所在节点，因为客户端所在节点不存在网络传输，上传失败的可能性小，这时候可以保证至少上传成功一个节点，其他节点即使失败了，可以进行内部复制  
+
+
+		* 文件下载  
+			* 客户端对NN发送下载的指令，hadoop fs -get /a.txt
+			* NN做一系列的校验（是否权限、文件是否存在..）
+			* NN向Client发送block的位置信息，根据情况发送一部分或者全部
+			* Client计算出最进行DN，然后建立连接，进行文件下载
+			* Client每下载一个块就会做CRC校验，如果下载失败，Client会向NN汇报，然后从其他的DD相应的块的副本，此时NN会记录这个可能故障的DN，在下次上传或者下载的时候，尽量不使用它。
+			* 当所有的块下载成功的时候，Client向NN汇报成功信息  
+			<img src="https://upload-images.jianshu.io/upload_images/22827736-ccd81755baa04f6b.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">  
+
+
+			> 文件下载过程中如果产生异常怎么办？  
+			数据块的某个节点读取不到数据，这个时候会向NN进行汇报，NN就会对这个DN做个标记（这个节点可能是问题节点），接着读取这个块存储的其他DN节点。  
+
+
+
+* 元数据管理  
+	* 元数据组成  
+		* 抽象目录树 
+		* 数据与数据块的对应关系-文件被切分为多少块  
+		* Block数据块的存放位置信息
+
+	* 元数据的存放目录  
+		/opt/hadoop/data/hadoopdata 下有三个目录：  
+		  
+		|  |  |
+		| -----| ---- | 
+		| data | 数据真实存储的目录，datanode存储数据的存储目,（Hadoop1既是namenode也是datanode）|
+		| name| namenode存储元数据的目录 |
+		| nm-local-dir | HDFS的本地缓存 |
+
+		/name/current 元数据存储目录，文件包括四大类：  
+
+		|  |  |  |
+		| :-----| ----: | :----: |
+		| edits_00000000001-00000000002 | 历史日志文件 | 编辑完成的日志文件，记录客户端对元数据操作的日志，只记录操作。比如某一个用户对某一个目录执行了某一种操作 |
+		| edits_inprogress_000000000001948 | 正在编辑的日志文件 | 目前对元数据修改的操作记录文件 |
+		| fsimage_000000001945 | 镜像文件 | 真实的元数据信息经过序列化之后的文件，序列化能够减少存储的容量，集群启动时会加载fsimage文件，加载时会进行反序列化，md5是加密文件 |
+		| seen_txid | 合并点记录文件 | 为什么记录合并点？  cat seen_txid  ->  1948 （与正在编辑的文职文件id一致），记录的是下一次需要合并的日志文件 |
+
+
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-45c098150391da71.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">  
+
+		* 当HDFS格式化后，只有以下三个文件
+
+		|  |  |  |
+		| :-----| ----: | :----: |
+		| fsimage_00000000000    | 格式化的镜像文件 | 只有跟目录  / |
+		| fsimage_00000000000.md5 |  |  |
+		| seen_txid |  |  |
+
+		* 当集群格式化后第一次启动：start-dfs.sh，会生成一个正在编辑的日志文件
+
+		|  |  |  |
+		| :-----| ----: | :----: |
+		| edits_inprogress_000000001 | 正在编辑的日志文件 |  |
+		| fsimage_00000000000     | 格式化的镜像文件 | 只有根目录 / |
+		| fsimage_00000000000.md5 |  |  |
+	| seen_txid |  |  |
+
+		> 真实的硬盘上存储的完成的元数据：   
+		> faimage+正在编辑的日志文件
+
+		> 内存中的元数据是完整的吗？  
+		> 无论什么时候，内存中的保存的元数据永远是最新的最完整的元数据
+
+
+	* 元数据合并  
+		* 磁盘上为什么要做元数据合并？  
+		如果fsimage和日志文件不进行合并，那么fsimage和内存中的元数据差别会越来越大  
+
+		* 什么时候进行合并  
+		元数据的合并时机  
+		A/B两个触发条件满足其一，则会触发合并（checkpoint）  
+
+		A：时间节点：间隔多长时间合并一次  
+		>         <property>
+		>         <name>dfs.namenode.checkpoint.period</name>
+		>          <value>3600</value//单位秒，3600s=1 hour
+		>          </property>  
+	
+		B：元数据条数：操作日志记录超过多少条合并一次  
+		>         <property>
+		>         <name>dfs.namenode.checkpoint.txns</name>
+		>         <value>1000000</value//100万条
+		>         </property>
+	
+
+		* 如何进行合并？  
+		secondaryNamenode对元数据进行合并：    
+		集群启动时，加载fsimage镜像文件到内存，如果是第一启动集群或者集群正常关闭之后重启此时nameNode会在硬盘中合并一个fsimage镜像seconddaryNameNode定时（1分钟）发送检验给nameNode，查看是否需要进行合并得知nameNode需要进行元数据合并seconddaryNameNode向nameNode发送合并请求nameNode将edits_inprogress_000095 根据seen_txid进行回滚，并且生成一个新的空的edits_inprogress_000096，继续记录操作日志secondaryNameNode将回滚的edits和最新的fsiamge进行本地拉去secondaryNameNode将edits和最新的fsiamge进行合并，在内存中根据edits修改fsiamgesecondaryNameNode将合并后的fsiamge推送回namenode。并在本地保存一份。
+
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-98c6c9494ececf38.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+
+		> secondaryNameNode将合并后的fsiamge推送回namenode后，为什么要在本机保存一份？
+		以防NameNode宕机后元数据丢失，可以用备份文件帮助NameNode进行恢复
+
+		> 如果不是第一次进行checkpoint，SNN只需要拉取合并点seen_txid之后的edits文件就可以了
+
+		> 在没有达到checkpoint过程的这段时间，如果集群正常关闭了，元数据会丢失吗？
+		在集群关闭之前，内存中的元数据会写入到磁盘中一份，关闭集群时候，保证磁盘上元数据据和内存中的一致。
