@@ -1,10 +1,10 @@
 # HDFS  
-###大数据学习线路图
+##大数据学习线路图
 
 <img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
 
 ----------
-###缩略词  
+##缩略词  
 NN - NameNode  
 SNN - Secondry NameNode  
 DN - DataNode  
@@ -12,7 +12,7 @@ DN - DataNode
 
 ----------
 
-###概念
+##概念
 HDFS-Hadoop Distributed File System
 ----------
 * 为什么要有HDFS  
