@@ -1,10 +1,10 @@
 # HDFS  
-##大数据学习线路图
+###大数据学习线路图
 
 <img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
 
 ----------
-##缩略词  
+###缩略词  
 NN - NameNode  
 SNN - Secondry NameNode  
 DN - DataNode  
@@ -12,7 +12,7 @@ DN - DataNode
 
 ----------
 
-##概念
+###概念
 HDFS-Hadoop Distributed File System
 ----------
 * 为什么要有HDFS  
@@ -414,8 +414,6 @@ HDFS专门为解决大数据的存储问题而产生
 
 		> secondaryNameNode将合并后的fsiamge推送回namenode后，为什么要在本机保存一份？
 		以防NameNode宕机后元数据丢失，可以用备份文件帮助NameNode进行恢复
-
 		> 如果不是第一次进行checkpoint，SNN只需要拉取合并点seen_txid之后的edits文件就可以了
-
 		> 在没有达到checkpoint过程的这段时间，如果集群正常关闭了，元数据会丢失吗？
 		在集群关闭之前，内存中的元数据会写入到磁盘中一份，关闭集群时候，保证磁盘上元数据据和内存中的一致。

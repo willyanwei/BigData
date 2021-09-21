@@ -1,0 +1,353 @@
+#Sqoop    
+
+  
+##什么是Sqoop  
+
+Apache Sqoop是一种用于在Hadoop和结构化数据存储（如关系型数据库）之间高效传输批量数据的工具  
+Sqoop就是Hadoop、Hive、HBase等数据仓库与数据库之间传输数据的工具。  
+将导入(输入)和导出(输出)的命令映射成MR程序。
+
+
+##为什么要用Sqoop  
+将数据从外部数据库导入到Hadoop，Hbase或者Hive太麻烦  
+
+##Sqoop架构  
+一个组织中有价值的数据都存储在关系型数据库系统等结构化存储器中。  
+Sqoop允许用户将数据从结构化存储器抽取到Hadoop中，用于进一步处理；  
+抽取的数据可以被MR程序进行使用，也可以被其他类似于Hive工具使用；  
+一旦生成最终的分析结果，Sqoop便可以将这些结果导回数据存储器，供其他客户端使用  
+
+
+Sqoop工具接收到客户端的Shell命令或者Java API命令后，通过Sqoop中的任务翻译器TaskTranslator将命令转换成对应的MR任务，然后将关系型数据库和Hadoop中的数据逆行相互转换，终而完成数据的拷贝  
+
+
+##Sqoop连接器  
+Sqoop拥有一个可扩展的框架，使得他能够从任何支持批量数据传输的外部存储系统导入数据；向任何支持批量数据传输的外部存储系统导出数据。   
+
+一个Sqoop连接器connector就是这个框架下的一个模块化组件，用于支持Sqoop的导入和导出操作  
+
+Sqoop内置的连接器能够支持大多数常用的关系数据库系统，包括MySQL、Oracle、SQLserver和DB2。同时还有一个通用的JDBC连接器，性能都绊过了优化。  
+
+除了内置的Sqoop连接器外，还有很多针对各种数据存储器的第三方连接器可用，  
+能够支持对企业级数据仓库（包括Netezza、Teradata和Oracle）和NoSQL存储器（例如Couchbase）的连接。这些连接器必须另外单独下载，根据安装说明使用。  
+
+
+
+##Sqoop导入
+
+* 导入形式： 	
+	* 将mysql中数据导入到HDFS中  
+
+		导入语法：   
+		`$ sqoop import (generic-args) (import-args)  `
+
+		1. 创建用于导出数据用户并赋予权限  
+		以root用户登录mysql集群第一台节点    
+		`mysql -uroot -p{$passwd} -P3316 -h{$ipaddr}  `
+		
+		在root用户权限下为集群中每一台mysql服务器创建一sqoop用户sqoopuser ，后续导出数据操作即是用sqoopuser用户进行操作。（其实生产环境中是从备库导出）  
+		>     create user 'sqoopuser'@'{$ipaddr1}' identified by '{$passwd}';  
+		>     create user 'sqoopuser'@'{$ipaddr2}' identified by '{$passwd}';  
+		>     create user 'sqoopuser'@'{$ipaddr3}' identified by '{$passwd}';  
+	
+		赋予sqoopuser权限  
+		>     grant all privileges on *.* to sqoopuser@'{$ipaddr1}';  
+		>     grant all privileges on *.* to sqoopuser@'{$ipaddr2}';  
+		>     grant all privileges on *.* to sqoopuser@'{$ipaddr3}';  
+		>     flush privileges;  
+	
+		2. 创建表，写入数据，以供后续导出  
+			创建数据库和数据表，并写入数据  
+		>     //创建数据库并切换（此库中的数据即为后续要导入到HDFS上的数据）
+		>     create database db_jbw;
+		>     use db_jbw;
+		>     
+		>     create table tbl_sqoop(
+		>         id varchar(11),
+		>         name varchar(11),
+		>         age int,
+		>         sex varchar(11)
+		>     );
+		>      
+		>     insert into tbl_sqoop value('0001', 'jbw', 23, 'man');
+		>     insert into tbl_sqoop value('0002', '33', 18, 'girl');
+		>     insert into tbl_sqoop value('0003', 'jack', 23, 'woman'); 
+	
+	
+		3. 拷贝数据库连接驱动  
+			拷贝mysql-connector-java-5.1.38-bin.jar驱动到/sqoop/lib目录下：    
+		> 	cp /home/mysql-connector-java-5.1.38-bin.jar /sqoop/lib
+		> 	chmod -R 777 /sqoop/lib/mysql-connector-java-5.1.38-bin.jar  
+	
+		4. 利用Sqoop开始导入HDFS  
+		sqoop list命令
+		> 	//列出所有数据库
+		> 	sqoop list-databases --username sqoopuser --password 123456 --connect jdbc:mysql://{$yourDBIpAddr}:3316/
+		>  
+		> 	//列出指定数据库下的所有表
+		> 	sqoop list-tables --username sqoopuser --password 123456 --connect jdbc:mysql://{$yourDBIpAddr}:3316/{$yourTableName}  
+	
+	
+		sqoop import命令：  
+		>     sqoop import   
+		>     --username sqoopuser   
+		>     --password 123456 
+		>     --connect jdbc:mysql://{$yourDBIpAddr}:3316/{$yourDBName}   
+		>     --query "select * from {$yourTableName} where \$CONDITIONS" 
+		>     --target-dir /tmp/jbw/sqoop_data/ 
+		>     --fields-terminated-by ','   
+		>     --split-by id 
+		>     --m 1  
+	
+	
+		1. 查看导入成功后的HDFS对应目录上的文件（此HDFS目录事先不需要自己建立，Sqoop会在导入的过程中自行建立）   
+		>     	hadoop fs -ls /tmp/jbw/sqoop_data  
+	
+		最后我们基于HDFS建立数据外表即可，后续根据业务需要建立内表并从外表中导入所需数据即可！ 
+ 
+	* 将mysql中数据导入到Hive中  
+		>     bin/sqoop import \
+		>     --connect "jdbc:mysql://hdp-01:3306/userdb?useUnicode=true&characterEncoding=utf-8" \
+		>     --username root \
+		>     --password root \
+		>     --hive-import \
+		>     --fields-terminated-by ',' \
+		>     --table emp \
+		>     --split-by id \
+		>     --m 2
+	
+		实际上是与HDFS相似，  
+		先将数据导入HDFS的临时目录，  
+		后调用hive元数据操作API接口，执行建表、将数据从临时目录导入到hive目录的操作
+
+* 导入方式  
+	* 全量导入
+	>     bin/sqoop import \ 
+	>      (输入命令)
+	>     
+	>      --connect jdbc:mysql://bigdata.ibeifeng.com:3306/testdb \ 
+	>      (指定连接jdbc端口和数据库名称)
+	>     
+	>      --username root \ 
+	>      (数据库用户名)
+	>     
+	>      --password root123 \ 
+	>      (密码 若不适用明文指定数据库密码 则可以用-P)
+	>     
+	>      --table user \ 
+	>      (指定数据库中的一张表)
+	>     
+	>      --target-dir /input/import \ 
+	>      (指定数据导入到HDFS上的目录)
+	>     
+	>      --delete-target-dir \ 
+	>      //如果目标目录已存在，则先删除
+	>     
+	>      --num-mappers 1 \ 
+	>      (指定使用导入数据的map个数,mapreduce(V1)中的方式可以用-m 1 代替(过时))
+	>     
+	>      --fields-terminated-by "," 
+	>      (目标文件的分隔符, 默认情况下,导入HDFS的每行数据分隔符是逗号)
+
+	*  部分字段导入  
+	>      bin/sqoop import \
+	>     
+	>      --connect jdbc:mysql://com.apache.bigdata:3306/sqoop \
+	>     
+	>      --username root \
+	>     
+	>      -P \
+	>     
+	>      --table user \
+	>     
+	>      --columns "id,account" \
+	>     
+	>      --target-dir /sqoop/query1 \
+	>     
+	>      -m 1 \
+	>     
+	>      --delete-target-dir \
+	>     
+	>      --fields-terminated-by "\t"
+
+	* 查询导入  
+	query，where子句必须有$CONDITONS(固定写法)
+	不能使用 --table    
+
+	>     bin/sqoop import \
+	>     
+	>      --connect jdbc:mysql://bigdata.ibeifeng.com:3306/testdb \
+	>     
+	>      --username root \
+	>     
+	>      -P \
+	>     
+	>      --query 'select id,account from user where account="fff" and $CONDITIONS' \
+	>     
+	>      --target-dir /input/query \
+	>     
+	>      -m 1 \
+	>     
+	>      --delete-target-dir \
+	>     
+	>      --fields-terminated-by "\t"  
+
+	**and $CONDITIONS务必需要加上，相当于and 1 = 1**  
+
+	* 增量导入  
+	注意3个参数
+
+		1.
+		--append and   
+		--delete-target-dir   
+		can not be used together.
+					
+		 2.--check-column   
+		不是使用CHAR/NCHAR/VARCHAR/VARNCHAR/ LONGVARCHAR/LONGNVARCHAR这样的数据类型
+					
+		后面跟 唯一 不重复的列 类似主键
+					
+		3.--incremental 支持两种模式 
+					
+		append 告诉sqoop是整型数据自增长的方式来区分从哪里开始增量导入
+					
+		lastmodified 告诉sqoop是最后一次修改文件的时间戳来区分从哪里开始增量导入  
+
+	> 
+	> 		bin/sqoop import \
+	> 		
+	> 		 --connect jdbc:mysql://com.apache.bigdata:3306/sqoop \
+	> 		
+	> 		 --username root \
+	> 		
+	> 		 -P \
+	> 		
+	> 		 --table user \
+	> 		
+	> 		 --num-mappers 1 \
+	> 		
+	> 		 --target-dir /sqoop/incremental \
+	> 		
+	> 		 --fields-terminated-by "|" \
+	> 		
+	> 		 --check-column id \ 
+	> 		 选择ID 作为主键
+	> 		
+	> 		 --incremental append \ 
+	> 		 选择ID来区分从哪里开始增量导入
+	> 		
+	> 		 --last-value 3 
+	> 		 选择从id为3之后的行开始导入数据
+
+
+* 确认导入成功    
+	下面的命令用来验证数据从emp_add表导入/wherequery目录
+	> $HADOOP_HOME/bin/hadoop fs -cat /wherequery/part-m-*`
+
+##Sqoop数据导出    
+	将数据从HDFS/HIVE把文件导出到RDBMS数据库  
+	导出前，目标表必须存在于目标数据库中  
+    输入给Sqoop的文件包含记录，这些记录在表中称为行，这些被读取并解析成一组记录并用用户指定的分隔符分隔  
+    默认操作是从将文件中的数据使用INSERT语句插入到表中  
+    更新模式下，是生成UPDATE语句更新表数据  
+	语法：  
+	>     $ sqoop export (generic-args) (export-args)   
+	>     $ sqoop-export (generic-args) (export-args)   
+
+
+	以HDFS中的文件中的员工数据为例，雇员数据在HDFS的'emp /'目录中的emp_data文件中可用，该emp_data如下：  
+	>     1201, gopal, manager, 50000, TP  
+	>     1202, manisha,   preader, 50000, TP  
+	>     1203, kalil, php dev, 30000, AC  
+	>     1204, prasanth,  php dev, 30000, AC  
+	>     1205, kranthi,   admin,   20000, TP  
+	>     1206, satish p,  grp des, 20000, GR  
+
+	必须手动创建要导出的表，并将其导出到数据库中。
+	1. 首先需要手动创建mysql中的目标表   
+	> 	$ mysql  
+	> 	mysqlUSE db;  
+	> 	mysqlCREATE TABLE employee ( 
+	> 	    id INT NOT NULL PRIMARY KEY, 
+	> 	    name VARCHAR(20), 
+	> 	    deg VARCHAR(20),
+	> 	    salary INT,
+	> 	    dept VARCHAR(10)  
+	> 	);  
+
+
+	2. 然后执行导出命令  
+	
+	>     bin/sqoop export \
+	>     --connect jdbc:mysql://hdp-01:3306/userdb \
+	>     --username root \
+	>     --password root \
+	>     --table employee \
+	>     --input-fields-terminated-by ',' \
+	>     --export-dir /sqooptest/
+
+
+	3. 在mysql数据库中验证  
+	PS: 虽然数据导出了，但是HDFS中的数据仍然存在    
+
+## Sqoop Job形式执行导入导出  
+如何创建和维护Sqoop作业  
+Sqoop作业创建并保存导入和导出命令，它指定参数来识别和调用保存的作业。这种重新调用或重新执行用于增量导入，它可以将更新的行从RDBMS表导入HDFS。   
+
+语法：  
+>     $ sqoop job (generic-args) (job-args)
+>        [-- [subtool-name] (subtool-args)]
+>     $ sqoop-job (generic-args) (job-args)
+>        [-- [subtool-name] (subtool-args)]  
+
+
+1. 创建作业（--create）
+我们在这里创建一个名为myjob的作业，它可以将表数据从RDBMS表导入HDFS。  以下命令用于创建将数据从db数据库中的employee表导入到HDFS文件的作业。
+
+>     $ sqoop job --create myjob \
+>     -- import \
+>     --connect jdbc:mysql://localhost/db \
+>     --username root \
+>     --table employee --m 1
+
+
+2. 验证作业（--list）  
+'--list'参数用于验证保存的作业。  
+以下命令用于验证保存的Sqoop作业列表。
+
+>     $ sqoop job --list
+它显示保存的作业列表
+
+>     Available jobs: 
+>        myjob
+
+
+3. 检查作业（ --显示）
+'--show'参数用于检查或验证特定作业及其细节。  
+以下命令和示例输出用于验证名为myjob的作业：
+
+>     $ sqoop job --show myjob  
+>     
+它显示了myjob中使用的工具及其选项。
+
+>     Job: myjob 
+>      Tool: import Options:
+>      ---------------------------- 
+>      direct.import = true
+>      codegen.input.delimiters.record = 0
+>      hdfs.append.dir = false 
+>      db.table = employee
+>      ...
+>      incremental.last.value = 1206
+>      ...  
+
+4. 执行作业（--exec）
+'--exec'选项用于执行保存的作业。  
+以下命令用于执行名为myjob的保存作业。
+
+>     $ sqoop job --exec myjob
+显示以下输出：
+
+>     10/08/19 13:08:45 INFO tool.CodeGenTool: Beginning code generation   
+>     ...
+>      

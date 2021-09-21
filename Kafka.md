@@ -1,0 +1,191 @@
+## Kafka
+
+### Kafka起源
+* Apache Kafka 是一个开源消息系统，由 Scala 写成。是由 Apache 软件基金会开发的一个开源**消息系统**项目。
+
+* Kafka 最初是由 LinkedIn 公司开发，并于 2011 年初开源。  
+2012 年 10 月从 Apache Incubator 毕业。  
+该项目的目标是为处理实时数据提供一个统一、高通量、低等待的平台。 
+
+
+
+### 什么是Kafka   
+* Kafka是一个分布式消息队列，对消息保存时根据Topic进行归类。发送消息着称为Producer，消息接收者称为Consumer，此外Kafka集群有多个Kafka实例组成，每个实例（server）称为Broker  
+
+* 在流式计算中，Kafka一般用于缓存数据，Storm通过消费Kafka的数据继续计算  
+* 无论是Kafka集群，还是producer和consumer都依赖于ZK集群保存一些meta消息，来保证系统可用性 
+
+### 为什么要有Kafka消息队列
+* 解耦  
+允许独立扩展或者修改两边的处理过程，只需要确保他们遵守同样的接口约束  
+
+* 冗余  
+消息队列把数据进行持久化直到它们已经被完全处理，通过这一方式规避了数据丢失的风险。  
+消息队列所采取的的“插入-获取-删除”范式中，在把一个消息从队列中删除之前，需要你的处理系统明确的指出该消息以及被处理完毕，从而确保你的数据被安全的保存直到使用完毕  
+
+* 扩展性  
+因为消息队列解耦了你的处理过程，所以增大消息入队和处理频率是很容易的，只要另外增加处理过程即可  
+
+* 灵活性&峰值处理能力  
+在访问量剧增的情况下，应用仍然需要继续发挥作用，但这样的突发流量并不常见。但是如果为以能处理这类峰值访问为标准来投入资源随时待命无疑是巨大的浪费。使用消息队列能顾使关键组件顶住突发的访问压力，而不会因为突发的超负荷请求而完全崩溃  
+
+* 可恢复性  
+系统的一部分组件失效时，不会影响到整个系统。消息队列降低了进程间的耦合度，所以一个处理消息的进程挂掉，加入队列中的消息仍然可以在系统恢复后被处理  
+
+* 顺序保证
+在大多数使用场景下，数据处理的顺序都很重要。大部分消息队列本来是排序的，并且能保证数据会按照特定的顺序来处理
+
+* 缓冲  
+有助于控制和优化数据流经过系统的速度，解决生产消息和消费消息的处理速度不一致的情况
+
+* 异步通信  
+很多时候，用户不想也不需要立即处理消息。消息队列提供了异步处理机制，允许用户把一个消息放入队列，但不立即处理他。想向队列中放多少消息就放多少，然后在需要的时候再去处理它们  
+
+
+
+### Kafka消息队列实现原理
+
+* 点对点模式--一对一，消费者主动拉取数据，消息收到后消息清除  
+点对点模型通常是一个基于拉取或者轮询的消息推送模型，这种模型从队列中请求信息，而不是将消息推送到客户端。  
+这个模型的特点是，发送到队列的消息被一个且只有一个接收者接收处理，即使有多个消息
+
+* 发布、订阅模式-- 一对多，数据生产后，推送给所有订阅者  
+发布订阅模型则是一个基于推送的消息传送模型。  
+发布订阅模型可以有多种不同的订阅者  
+	* 临时订阅者只在主动监听主题时才接收消息，
+	* 持久订阅者则监听主题的所有消息，即使当前订阅者不可用，处于离线状态。  
+
+
+### Kafka架构
+* Producer： 消息生产者，就是向Kafka Broker发消息的客户端
+* Consumer：消息消费者，向Kafka Broker取消息的客户端
+* Consumer Group：  
+这是Kafka用来实现一个Topic消息的广播和单播的手段
+	*  广播：发给所有的Consumer
+	*  单播（发给任意一个Consumer）。  
+一个Topic可以有多个CG，Topic的消息会复制到所有的CG，但是每个Partition只会把消息发送给该CG中的一个Consumer。  
+	* 实现广播，只要每个Consumer有一个独立的CG就可以了。
+	* 实现单播，只要所有的Consumer在同一个CG
+用CG还可以将Consumer进行自由的分组而不需要多次发送消息到不同的Topic  
+* Topic：可以理解为一个队列  
+* Broker：一台Kafka服务器就是一个一个Broker，一个集群由多个Broker组成，一个Broker可以容纳多个Topic
+* Partition：为了实现扩展性：  
+	* 一个非常大的Topic可以分布到多个Broker上
+	* 一个Topic可以分为多个Partition
+	* 每个Partition是一个有序的队列，Partiton中每条消息都会分配一个有序的ID（offset）
+	* Kafka只保证按一个Partition中的顺序将消息发送给Consumer，不保证一个Topic的整体顺序（多个Partition的顺序）
+* offset： Kafka的存储文件都是按照offset.kafka来命名的，用offset来命名的好处是方便查找，  
+例如： 你想找位于 2049 的位置，只要找到 2048.kafka 的文件即可。当然 the first offset 就
+是 00000000000.kafka
+
+
+
+
+
+## Kakfa的工作流程
+
+* Kafka生产过程
+	* 写入方式  
+		* Producer采用推Push模式将消息发布到Broker  
+		* 每条消息都被追加Append到分区Partition中，
+		* 属于顺序写磁盘
+		> 顺序写磁盘效率比随机写内存要高，保障了Kafka的吞吐率
+	
+
+	* 分区	
+		消息发送时都被发送到一个Topic,其本质是一个目录，而Topic是由一些Partiton Logs（日志分区）组成的，其组织结构：  
+		每个Partition中的消息都是有序的，生产的消息被不断的追加到Partition Log上，其中每一个消息都被赋予了一个唯一的offset值。  
+		* 分区的原因
+			* 方便在集群中扩展，每个Partition可以通过调整以适应他所在的机器，而Topic由多个Partition组成，因此整个集群就可以适应任何大小的数据了
+			* 可以提高并发性，因为可以以Partition为单位读写了
+		* 分区的原则  
+			* 指定Partition则直接使用
+			* 未指定Partition但指定Key，通过对Key的value进行hash出一个Partition
+			* Partition和Key都未指定，使用轮询选出一个Partition
+
+	* 副本
+		* 同一个Partiton可能会有多个replication  
+		* 没有Replication的情况下，一旦Broker宕机，所有的Partition的数据都不可以被消费，同时Producer也不能再将数据存在其上的Partition
+		* 引入Replication之后，同一Partition可以有多个Replication，而这时需要在这些Replication中选出一个Leader，Producer和Consumer只与这个Leader交互，其他的Replication作为Follower从Leader中复制数据。
+
+	* 写入流程
+		* producer 先从 ZK 的 "/brokers/.../state"节点找到该 partition 的 leader 
+		* producer 将消息发送给该 leader 
+		* leader 将消息写入本地 log 
+		* followers 从 leader pull 消息，写入本地 log 后向 leader 发送 ACK 
+		* leader 收到所有 ISR 中的 replication 的 ACK 后，增加 HW（high watermark，最后 commit 的 offset）并向 producer 发送 ACK
+
+* Broker保存消息
+	* 存储方式
+	物理上把Topic分成一个或者多个Partition，每个Partition物理上对应一个文件夹，该文件夹存储该Partition的所有消息和索引文件  
+		> [atguigu@hadoop102 logs]$ ll   
+		> drwxrwxr-x. 2 atguigu atguigu  4096 8 月   6 14:37 first-0   
+		> drwxrwxr-x. 2 atguigu atguigu  4096 8 月   6 14:35 first-1   
+		> drwxrwxr-x. 2 atguigu atguigu  4096 8 月   6 14:37 first-2   
+		> [atguigu@hadoop102 logs]$ cd first-0   
+		> [atguigu@hadoop102 first-0]$ ll   
+		> -rw-rw-r--. 1 atguigu atguigu 10485760 8 月   6 14:33 00000000000000000000.index   
+		> -rw-rw-r--. 1 atguigu atguigu      219 8 月   6 15:07 00000000000000000000.log   
+		> -rw-rw-r--. 1 atguigu atguigu 10485756 8 月   6 14:33 00000000000000000000.timeindex   
+		> -rw-rw-r--. 1 atguigu atguigu        8 8 月   6 14:37 leader-epoch-checkpoint  
+	* 存储策略
+	无论消息是否被消费，Kafka都会保留所有消息，有两种策略可以删除旧数据：  
+		* 基于时间：log.retention.hours=168 
+		* 基于大小：log.retention.bytes=1073741824
+	需要注意的是，因为Kafka读取特定消息的时间复杂度为 0或者1，即与文件大小无关，所以这里删除过期文件与提升Kafka性能无关
+ 	* ZK存储结构  
+	略
+
+* Kafka消费过程分析
+	Kafka提供了两套Consumer API： 高级Consumer API和低级Consumer API
+	* 高级API
+		* 优点  
+			书写简单  
+			不需要自行去管理offset，系统通过ZK自行管理  
+			不需要管理分区、副本等情况，系统自动管理  
+			消费者断线会自动根据上一次记录在ZK中的offset去接着获取数据，默认设置1分钟更新一次ZK中存的offset  
+		* 缺点  
+			不能自行控制offset，无法应对某些特殊需求  
+			不能细化控制如分区、副本、ZK等
+	
+	* 低级API
+		* 优点	  
+			能够让开发者自己控制offset，想从哪里读取就从哪里读取  
+			自行控制连接分区，对分区自定义进行负载均衡  
+			对ZK的依赖性降低，如offset不一定非要靠ZK存储，自行存储offset即可，如存在文件或内存中  
+		* 缺点  
+			太过复杂，需要自行控制offset，连接哪个分区，找到分区Leader等  
+	* 消费者组  
+		消费者是以Consumer Group消费者组的方式工作。由一个或者多个消费者组成一个组，同时消费一个Topic。		
+		每个分区Partition同时只能由CG中一个Consumer读取，但是多个Group可以同时消费这个Partition  
+		在图中，有一个由三个消费者组成的CG，C0读取P0，C1读取P1和P2，C2读取P3，某个消费者读取某个分区，也可以叫做某个消费者是某个分区的拥有者。  
+		Consumer可以通过水平扩展的方式同时读取大量的消息  
+		如果一个Consumer失败了，其他的Group成员会自动负载均衡读取 失败的消费者 读取的分区。  
+	* 消费方式
+		* Pull和Push消费方式：
+			* Consumer采用Pull拉的模式从Broker中读取数据
+			* Push推的模式很难适应消费速率不同的消费者，因为消息发送速率是由Broker决定的。它的目标是尽可能以最快的速度传递消息，但是这样很容易造成Consumer来不及处理消息，典型的表现就是拒绝服务以及网络拥塞；而Pull模式可以根据Consumer的消费能力以适当的速率消费消息
+		* 对Kafka而言，Pull模式更合适，他可以简化Broker的设计，Consumer可自主控制消费消息的速率，同时Consumer可以自己控制消费方式：
+			* 可批量消费
+			* 可逐条消费
+			* 可选择不同的提交方式从而实现不同的传输语义
+		* Pull模式不足之处是，如果Kafka没有数据，消费者可能会陷入循环中，一直等数据达到。为了避免这种情况，在Pull请求中加入参数，允许消费者请求在等待数据达到的"长轮询"中进行阻塞，并且可选的等待到给定的字节数，以确保大的传输大小。
+	* 消费者组案例  
+		需求：测试同一个消费者组中的消费者，同一时刻只能有一个消费者消费。 
+		案例实操 
+		* 在 hadoop102、hadoop103 上修改/opt/module/kafka/config/consumer.properties 配置
+		文件中的 group.id 属性为任意组名。 
+		[atguigu@hadoop103 config]$ vi consumer.properties group.id=atguigu 
+		* 在 hadoop102、hadoop103 上分别启动消费者   
+		[atguigu@hadoop102 kafka]$ bin/kafka-console-consumer.sh --zookeeper   
+		hadoop102:2181 --topic first --consumer.config config/consumer.properties   
+		[atguigu@hadoop103 kafka]$ bin/kafka-console-consumer.sh --zookeeper   
+		hadoop102:2181 --topic first --consumer.config config/consumer.properties   
+		* 在 hadoop104 上启动生产者 
+		[atguigu@hadoop104 kafka]$ bin/kafka-console-producer.sh --broker-list   
+		hadoop102:9092 --topic first   
+		> hello world   
+		* 查看 hadoop102 和 hadoop103 的接收者。   
+		同一时刻只有一个消费者接收到消息。 
+ 
+

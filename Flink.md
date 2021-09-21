@@ -1,0 +1,694 @@
+
+#Flink
+
+##前言
+
+###Flink产生的背景  
+
+大数据的4代计算引擎   
+第1代： Hadoop MapReduc批处理 Mapper、Reducer 2.   
+第2代： DAG框架（Oozie 、Tez），Tez + MapReduce 批处理 1个Tez = MR(1) + MR(2) + ... + MR(n) 相比MR效率有所提升   
+第3代： Spark 批处理、流处理、SQL高层API支持 自带DAG 内存迭代计算、性能较之前大幅提  
+第4代： Flink 批处理、流处理、SQL高层API支持 自带DAG 流式计算性能更高、可靠性更高  
+
+Spark和Flink全部都运行在Hadoop YARN上，  
+性能为Flink > Spark > Hadoop(MR)，迭代次数越多越明显，  
+性能上，Flink优于Spark和Hadoop最主要的原因是Flink支持增量迭代，具有对迭代自动优化的功能。  
+
+
+|  | Flink | SparkStreaming | Storm |
+| ----| ---- | ---- |
+| 定义 | 真正的流计算，就像Storm一样，但是Flink同时支持有限的数据流计算（批处理） |  弹性的分布式数据集，并非真正的实时计算  |Storm是Twitter开源的分布式实时大数据处理框架，被业界称为实时版Hadoop|
+| 架构 | 架构介于Spark和Storm之间，主从结构与Spark Streaming相似，DataFlow Grpah与Storm相似，数据流可以被表示为一个有向图，每个顶点是一个用户定义的运算，每向边表示数据的流动    | 架构依赖Spark，主从模式，每个Batch处理都依赖主Driver，可以理解为时间维度上的Spark DAG | 主从模式，依赖于ZK，处理过程中对主的依赖不大 |
+| 容错性 | 基于Chandy-Lamport distributed snapshots checkpoint 机制，非常轻量级 |WAL及RDD血统机制，checkpoint，比较沉重 | Records ACK |
+| 处理模型与延迟| 单条事件处理，亚秒级低延迟10ms | 一个事件窗口内所有的事件，秒级高延迟100ms|每次传入一个事件，亚秒级低延迟10ms |
+| 数据处理保证 | exactly once | exactly one (实现采用Chandy-Lamport算法，即marker-checkpoint) | at least once(实现采用record-level acknowledments) Trident可以支持storm提供exactly once语义|
+| 易用性 | 支持SQL Streaming， Batch和 Streaming采用统一编程架构 | 支持SQL Streaming Batch和Streaming采用统一编程架构 | 不支持SQL Streaming |
+| 成熟性 |新兴项目，处于发展阶段 | 已经发展了一段时间 | 相对于较早的流系统，比较稳定 |
+|部署 | 部署相对简单，只依赖JRE环境|部署相对简单，只依赖JRE环境|依赖JRE环境和ZK|
+
+
+
+###Flink的起源  
+起源于Stratosphere项目，  
+Stratosphere是在2010~2014年由3所地处柏林的大学和欧洲的一些其他的大学共同进行的研究项目，  
+2014年4月Stratosphere的代码被复制并捐赠给了Apache软件基金会，参加这个孵化项目的初始成员是Stratosphere系统的核心开发人员，  
+2014年12月，Flink一跃成为Apache软件基金会的顶级项目。  
+
+##Flink的概念
+###什么是Flink  
+在德语中，Flink一词表示快速和灵巧，项目采用一只松鼠的彩色图案作为logo，这不仅是因为松鼠具有快速和灵巧的特点，还因为柏林的松鼠有一种迷人的红棕色，而Flink的松鼠logo拥有可爱的尾巴，尾巴的颜色与Apache软件基金会的logo颜色相呼应，也就是说，这是一只Apache风格的松鼠。    
+Flink主页在其顶部展示了该项目的理念：“Apache Flink是为分布式、高性能、随时可用以及准确的流处理应用程序打造的开源流处理框架”。   
+Flink是一个框架和分布式处理引擎，用于对无界和有界数据流进行有状态计算。Flink被设计在所有常见的集群环境中运行，以内存执行速度和任意规模来执行计算。  
+
+###Flink的特点  
+1)支持高吞吐、低延迟、高性能的流处理  
+2)支持带有事件时间的窗口（Window）操作  
+3)支持有状态计算的Exactly-once语义  
+4)支持高度灵活的窗口（Window）操作，支持基于time、count、session，以及data-driven的窗口操作  
+5)支持具有背压功能的持续流模型  
+6)支持基于轻量级分布式快照（Snapshot）实现的容错  
+7)一个运行时同时支持Batch on Streaming处理和Streaming处理  
+8)Flink在JVM内部实现了自己的内存管理  
+9)支持迭代计算  
+10)支持程序自动优化：避免特定情况下Shuffle、排序等昂贵操作，中间结果有必要进行缓存  
+
+###Flink如何实现流处理  
+* 什么是批处理和流处理    
+	* 批处理的特点是有界、持久、大量。批处理非常合适需要访问全套记录才能完成的计算工作，一般用于离线统计。  
+	* 流处理的特点是无界、实时、流处理方式，无需针对整个数据集执行操作，而是对通过系统传输的每个数据项执行操作，一般用于实时统计  
+* 如何实现  
+	* 在Spark生态体系中，对于批处理和流处理采用不同的技术架构，批处理由SparkSQL实现，流处理由SparkStreaming实现  
+	* Flink可以同时实现批处理和流处理  
+* Flink如何同时实现
+	* Flink将批处理，即处理有限的静态数据，视作一种特殊的流处理    
+
+##Flink的技术栈  
+Flink的核心计算架构是的Flink Runtime执行引擎，它是一个分布式系统，能够接受数据流程序并在一台或多台机器上以容错方式执行。
+Flink Runtime执行引擎可以作为YARN（Yet Another Resource Negotiator）的应用程序在集群上运行，也可以在Mesos集群上运行，还可以在单机上运行（这对于调试Flink应用程序来说非常有用）。  
+
+Flink分别提供了面向流式处理的接口（DataStream API）和面向批处理的接口（DataSet API）。  
+因此，Flink既可以完成流处理，也可以完成批处理。  
+Flink支持的拓展库涉及机器学习（FlinkML）、复杂事件处理（CEP）、以及图计算（Gelly），还有分别针对流处理和批处理的Table API。  
+
+
+##Flink架构体系
+
+用户首先提交Flink程序到JobClient，经过JobClient的处理、解析、优化提交到JobManager，最后由TaskManager运行task  
+一个Flink程序由多个Operator组成(source、transformation和 sink)。
+一个Operator由多个并行的Task(线程)来执行， 一个Operator的并行Task(线程)数目就被称为该Operator(任务)的并行度(Parallel)。
+
+  
+###Flink的网元
+  
+* **JobClient**    
+JobClient是Flink程序和JobManager交互的桥梁，主要负责接收程序、解析程序的执行计划、优化程序的执行计划，然后提交执行计划到JobManager。    
+Flink的三类Operator：  
+	1. Source Operator，数据源操作，如文件、socket、kafka等  
+	2. Transformation Operator，这类操作主要负责数据转换，map，flatMap，reduce等算子都属于Transformation Operator
+	3. Sink Operator，意思是下沉操作，这类操作一般是数据落地，数据存储的过程，放在Job最后，比如数据落地到Hdfs、Mysql、Kafka等等  
+
+	**JobClient的工作**：  
+	1. 将程序中每一个算子解析成Operator，然后按照算子之间的关系，将Operator组合起来，形成一个Operator组合成的Graph：  
+		>     DataStream<Stringdata = env.addSource(...);
+		>     data.map(x->new Tuple2(x,1)).keyBy(0).timeWindow(Time.seconds(60)).sum(1).addSink(...)
+
+	2. 解析形成执行计划后，JobClient的任务还没结束，还负责执行计划的优化：将相邻的Operator融合，形成OperatorChain：  
+	Flink是分布式运行的，程序中每一个算子，在实际执行中被分割成SubTask，     
+	数据流在算子之间流动，就对应的SubTask之间的数据传递，    
+	SubTask之间进行数据传递模式有两种：      
+	（1）One-to-One，数据不需要重新分布，也就是数据不需要经过I/O，节点本地就能完成，如source-map    
+	（2）re-distributed，数据需要通过shuffle过程重新分区，需要经过I/O，如map-keyby    
+	
+	但是re-distributed这种模式更加浪费时间，同时影响整个Job的性能；    
+	Flink为了提高性能，将one-to-one关系的前后两类subtask融合成一个task；  
+	TaskManager中一个Task运行一个独立的线程，同一个线程中的SubTask进行数据传递，不需要进行I/O，不需要经过序列化，直接发送数据对象到下一个SubTask，性能得到提升；  
+	除此之外，subTask的融合可以减少task的数量，提高taskManager的资源利用率。  
+
+	> 值得注意的是，并不是每一个SubTask都可以被融合，对于不能融合的SubTask会独立形成一个；  
+	> Task运行在TaskManager中。  
+		改变operator的并行度，可能会导致不同的优化结果，同时这也是性能调优的一个重要方式，  
+		例如不显式设置operator的并行度的时候，默认所有算子的并行度是一样的
+
+
+* **JobManager处理器** - 主Master  
+是一个进程；  
+从客户端接收到任务以后, 首先生成优化过的执行计划, 再调度到TaskManager中执行；  
+主要负责申请资源，协调以及控制整个job的执行过程。  
+  
+	1. 主要作用：     
+		调度task，协调检查点(CheckPoint)，协调失败时恢复等。    
+		* **调度任务Task**    
+		JobManager在接到JobClient提交的执行计划之后，继续解析，  
+		JobClient只是形成一个Operator层面的执行计划，  
+		JobManager继续解析执行计划，根据算子并发度划分task，形成一个可以被实际调度的由task组成的拓扑图，  
+		最后向集群申请资源，一旦资源就绪，就调度task到taskmanager  
+		* **容错**    
+		依靠CheckPoint进行容错，CheckPoint其实是Data Stream 和Executor的快照，  
+		一般CP保存在可靠的存储中，比如HDFS，  
+		为了容错，Flink会持续建立这类快照；  
+		当Flink作业重新启动的时候，会寻找最新可用的checkpoint来恢复执行状态，已达到数据不丢失，不重复，准确被处理一次的语义。一般情况下，都不会用到checkpoint，只有在数据需要积累或处理历史状态的时候，才需要设定checkpoint，比如updateStateByKey这个算子，默认会启用checkpoint，如果没有配置checkpoint目录的话，程序会抛异常。   
+ 
+   	2. **核心组件**    
+   		包含Actor System、Scheduler、CheckPoint三个重要的组件
+	   
+	3. **Leader&Standby**  
+		为了保证高可用，一般会有多个JobManager同时存在，他们之间采用主从模式，  
+		一个进程被选举为Leader，  
+		其他进程为Follower，    
+		Job运行期间，只有Leader在工作，Follower则Standby。    
+		一旦Leader宕机，随即引发一次选举，产生新的Leader，继续处理Job。  
+
+  
+* **TaskManager处理器** - 从Worker   
+	JobManager是master，TaskManager就是worker，Task Manager 是在 JVM 中的一个或多个线程中执行任务的工作节点，主要用来执行任务。     
+	1. **主要工作**  
+		1. 接收并执行JobManager发送的Task，  
+		2. 与JobManager通信，反馈任务状态信息，比如任务分执行中，执行完等状态，上文提到的checkpoint的部分信息也是TaskManager反馈给JobManager的  
+	  
+    2. TaskManager的任务槽task-slot和任务共享slot sharing   
+   
+		在TaskManager内可以运行多个task：  
+		多个task运行在一个JVM内有几个好处，首先task可以通过多路复用的方式TCP连接，其次task可以共享节点之间的心跳信息，减少了网络传输。  
+	
+		TaskManager通过Task Slot来控制一个Worker能接受多少个task，
+		在创建之初就设置好了Slot, 一个Worker至少有一个task slot。   
+		
+		* Slot任务槽  
+			**什么是Slot**  
+			Slot是Flink的任务执行器，每个Slot可以运行多个Task，而且每个Task以单独的线程来运行；
+			TaskManager资源粒度的划分，一个TaskManager拥有多个Slot；  
+			每个task slot表示TaskManager拥有资源的一个固定大小的子集    
+		
+			**Slot的内存分配**
+			每个Slot都有自己独立的内存， 所有Slot平均分配TaskManger的内存，比如TaskManager分配给Solt的内存为8G，两个Slot，每个Slot的内存为4G，四个Slot，每个Slot的内存为2G，  
+			值得注意的是，Slot仅划分内存，不涉及cpu的划分。
+
+			**Slot主要的好处有以下几点**：
+			可以起到隔离内存的作用，防止多个不同job的task竞争内存；  
+			Slot的个数就代表了一个Flink程序的最高并行度，简化了性能调优的过程； 
+			允许多个Task共享Slot，提升了资源利用率，举一个实际的例子，kafka有3个partition，对应flink的source有3个task，而keyBy我们设置的并行度为20，这个时候如果Slot不能共享的话，需要占用23个Slot，如果允许共享的话，那么只需要20个Slot即可（Slot的默认共享规则计算为20个）。 
+	 
+			* 槽共享    	
+			Flink允许子任务共享插槽，即使它们是不同任务的子任务，只要它们来自同一个作业。  
+			结果是一个槽可以保存作业的整个管道。  
+			允许插槽共享有两个主要好处：
+			(1)只需计算Job中最高并行度（parallelism）的task slot,只要这个满足，其他的job也都能满足。
+			(2)资源分配更加公平，如果有比较空闲的slot可以将更多的任务分配给它。图中若没有任务槽共享，负载不高的Source/Map等subtask将会占据许多资源，而负载较高的窗口subtask则会缺乏资源。
+			(3)有了任务槽共享，可以将基本并行度（base parallelism）从2提升到6.提高了分槽资源的利用率。同时它还可以保障TaskManager给subtask的分配的slot方案更加公平。
+		* Parallelism并行度     
+			一个Flink程序由多个Operator组成(source、transformation和 sink)。   
+			一个Operator由多个并行的Task(线程)来执行， 一个Operator的并行Task(线程)数目就被称为该Operator(任务)的并行度(Parallel)
+			在执行过程中，  
+			一个data stream包含一个或多个stream partition，  
+			每一个operator包含一个或多个operator subtask，  
+			这些operator subtasks在不同的线程、不同的物理机或者不同的容器中彼此互不依赖的执行。  
+			一个特定operator的subtask个个数被称之为其parallelism并行度。  
+		
+			> Task Slot是静态概念，是指TaskManager具有并发执行能力，可以通过参数
+			> taskmanager.numberOfTaskSlots进行配置.   
+			> 并行度parallelism是动态概念，即TaskManager运行程序时实际使用的并发能力，可
+			> 以通过参数parallelism.default进行配置。
+			
+			假设一共有3个TaskManager，每个Taskmanager中分配三个TaskSlot，也就是每个TaskManager可以接收3个Task，一共9个TaskSlot，如果我们设置parallelism.default = 1，即运行程序默认并行度是1,9个TaskSlot只用一个，有8个空间，因此，设置合适的并行度才能提高效率。  
+			
+			**并行度可以有如下几种指定方式**
+				1. Operator Level（算子级别）(可以使用)
+				2. Execution Environment Level（Env级别）(可以使用)
+				3. Client Level(客户端级别,推荐使用)(可以使用)
+				4. System Level（系统默认级别,尽量不使用）  
+		
+
+
+###无界数据流和有界数据流  
+1. **无界数据流**: 源源不断的数据.比如:网站的点击事件.统计某个路口通过的车辆.    
+	无界数据流有一个开始但是没有结束，它们不会在生成时终止并提供数据，必须连续处理无界流，也就是说必须在获取后立即处理event。  
+	对于无界数据流我们无法等待所有数据都到达，因为输入是无界的，并且在任何时间点都不会完成。处理无界数据通常要求以特定顺序（例如事件发生的顺序）获取event，以便能够推断结果完整性。  
+2. **有界数据流**: 有固定数量的数据.比如过去半年的所有订单.     		
+	有界数据流有明确定义的开始和结束，可以在执行任何计算之前通过获取所有数据来处理有界流，处理有界流不需要有序获取，因为可以始终对有界数据集进行排序，有界流的处理也称为批处理。
+
+
+
+###运行架构  
+Flink程序的基本构成是数据流和转换  
+
+
+##Window
+
+###为什么需要Window  
+
+在流处理应用中，数据是连续不断的，有时候需要我们做一些聚合类的处理。  
+例如，在过去一分钟内多少用户点击了我们的网页。  
+在这种情况下，必须定义一个窗口（Window），用来收集最近一分钟内的数据，并对这个窗口内的数据进行计算。  
+
+Flink认为Batch是Streaming的一个特例，Flink在底层的流式引擎上实现流处理和批处理，而Window就是从Streaming到Batch的一个桥梁   
+
+Window可以将无限流切分成有限流，是处理有限流的核心组件  
+window可以是时间驱动的time window，也可以是数据驱动的Count Window  
+
+###什么是Window  
+
+**我们先提出一个问题：统计经过某红绿灯的汽车数量之和？**   
+假设在一个红绿灯处，我们每隔15秒统计一次通过此红绿灯的汽车数量：   
+可以把汽车的经过看成一个流，无穷的流，不断有汽车经过此红绿灯，因此无法统计总共的汽车数量。  
+我们可以换一种思路，每隔15秒，我们都将与上一次的结果进行sum操作(滑动聚合, 但是这个结果似乎还是无法回答我们的问题，根本原因在于流是无界的，我们不能限制流，但可以在有一个有界的范围内处理无界的流数据。  
+
+滑动窗口:窗口长度:15s, 滑动的间隔:15s  ---这样一个特殊的窗口长度=滑动的间隔的窗口也叫做滚动窗口  
+
+
+**我们需要换一个问题的提法：每隔15秒统计一次每分钟经过某红绿灯的汽车数量之和？**    
+这个问题，就相当于一个定义了一个Window(窗口)，window的界限是1分钟，且每分钟内的数据互不干扰，因此也可以称为翻滚(不重合)窗口，如下图： 
+第一分钟的数量为8，第二分钟是22，第三分钟是27。。。这样，1个小时内会有60个window。
+
+**再考虑一种情况，每30秒统计一次过去1分钟的汽车数量之和：**       
+滑动窗口:窗口长度:1min, 滑动的间隔:30s   
+此时，window出现了重合。这样，1个小时内会有120个window。    
+
+
+
+###Flink支持的窗口划分方式  
+* 方式  
+如果在数据流上，截取固定大小的一部分，这部分是可以进行统计的。  
+截取方式主要有两种：  
+	* time window  根据时间划分，每一分钟统计一次   
+	* count window  根据数据划分，每五个数据统计一次  
+
+* 重要属性  
+	* 窗口长度Size  
+	* 滑动间隔interval  
+	如果size=interval，那么就会形成tumbling-window无重叠数据--滑动的特例--滚动窗口  
+	如果size>interval，那么就会形成sliding-window有重叠数据--正常的滑动窗口  
+	如果size<interval，那么这种窗口将会丢失数据，比如每5秒统计过去3秒通过路口汽车的数据，将会漏掉2秒的数据  
+
+* 通过组合可以得出3+2种基本窗口  
+
+	time window：  
+	>     	1. time-tumbling-window 无重叠数据的时间窗口，设置方式举例：timeWindow(Time.seconds(5))---基于时间的滚动窗口  
+	>     	2. time-sliding-window  有重叠数据的时间窗口，设置方式举例：timeWindow(Time.seconds(10), Time.seconds(5))---基于时间的滑动窗口  
+	>     	3. time-SessionWindow	会话窗口  
+
+	count window：  
+	>     	1. count-tumbling-window无重叠数据的数量窗口，设置方式举例：countWindow(5)---基于数量的滚动窗口  
+	>     	2. count-sliding-window 有重叠数据的数量窗口，设置方式举例：countWindow(10,5)---基于数量的滑动窗口  
+    
+
+
+	* Time-Windows    
+		对于TimeWindow，可以根据窗口实现原理的不同分成三类：  
+		1. 滚动窗口(Tumbling Window)  
+		**概念**：又叫固定窗口，将数据依据固定的窗口长度对数据进行切片,  
+		滚动窗口分配器将每个元素分配到一个指定大小的窗口中，     
+		**特点**：size=interval 时间对齐，窗口长度固定，没有重叠      
+		**适用场景**： BI统计，对每个时间段做聚合计算  
+		2. 滑动窗口  
+		**概念**：滑动窗口是滚动窗口更广义的一种形式，由固定的窗口长度和滑动间隔组成。   
+		滑动窗口分配器将每个元素分配到固定长度的窗口中，与滚动窗口类似，  
+		窗口的大小由窗口大小参数来配置，   
+		窗口和滑动参数控制滑动窗口开始的频率。   
+		因此，滑动窗口如果滑动参数小于窗口大小的话，窗口是可以重叠的，在这种情况下元素会被分配到多个窗口中。
+		
+			例如，你有10分钟的窗口和5分钟的滑动，那么每个窗口中5分钟的窗口里包含着上个10分钟产生的数据，如下图所示
+	
+			**特点**：size不等于interval 时间对齐，窗口长度固定，有重叠  
+		**适用场景**：对最近一个时间段内的统计(求某接口最近5min的失败率来决定是否要报警)。  
+
+
+		3. 会话窗口(Session Window)     
+		**概念**： 由一系列事件组合一个指定长度的timeout间隙组成，类似于web应用的session，也就是说一段时间没有接收到新的数据就会生成新的窗口。  
+		session窗口分配器通过session活动来对元素进行分组，session窗口在一个固定的时间周期内不再接受到元素，即非活动间隔产生，那么窗口就会关闭。  
+		一个session窗口通过一个session间隔来配置，这个session间隔定义了非活跃周期的长度，当这个非活跃周期产生，那么当前的session将关闭并且后续的元素将被分配到新的session窗口中去。    
+		**特点**：不会有重叠和固定的开始时间和结束时间  
+		
+
+		4. 代码演示  
+			1.发送命令  
+			nc -lk 9999
+
+			2.发送内容  
+			路灯编号,通过的数量  
+			9,3
+			9,2
+			9,7
+			4,9
+			2,6
+			1,5
+			2,3
+			5,7
+			5,4
+
+			3.需求
+			每5秒钟统计一次，在这过去的5秒钟内，各个路口通过红绿灯汽车的数量--滚动窗口
+			每5秒钟统计一次，在这过去的10秒钟内，各个路口通过红绿灯汽车的数量--滑动窗口
+			//会话窗口(需要事件时间支持):在30秒内无数据接入则触发窗口计算
+
+			4.代码：
+		 
+			>     package cn.itcast.window
+			>     
+			>     import org.apache.flink.api.java.tuple.Tuple
+			>     import org.apache.flink.streaming.api.TimeCharacteristic
+			>     import org.apache.flink.streaming.api.scala.{AllWindowedStream, DataStream, StreamExecutionEnvironment, WindowedStream}
+			>     import org.apache.flink.streaming.api.windowing.assigners.{EventTimeSessionWindows, SlidingEventTimeWindows, TumblingEventTimeWindows}
+			>     import org.apache.flink.streaming.api.windowing.time.Time
+			>     import org.apache.flink.streaming.api.windowing.windows.TimeWindow
+			>     
+			>     object StreamingTimeWindow {
+			>       //样例类CarWC(信号灯id,数量)
+			>       case class CarWc(sensorId: Int, carCnt: Int)
+			>     
+			>       def main(args: Array[String]): Unit = {
+			>     //1.准备环境
+			>     val env = StreamExecutionEnvironment.getExecutionEnvironment
+			>     //2.接收数据
+			>     val socketData = env.socketTextStream("node01", 9999)
+			>     //3.处理数据socketData->carWcData
+			>     import org.apache.flink.api.scala._
+			>     val carData: DataStream[CarWc] = socketData.map(line ={
+			>       val arr: Array[String] = line.split(",")
+			>       CarWc(arr(0).toInt, arr(1).toInt)
+			>     })
+			>     //nokeyed数据
+			>     //val value: AllWindowedStream[CarWc, TimeWindow] = carData.timeWindowAll(Time.seconds(5),Time.seconds(5))
+			>     //keyed数据
+			>     //val value1: WindowedStream[CarWc, Tuple, TimeWindow] = carData.keyBy(0).timeWindow(Time.seconds(5),Time.seconds(5))
+			>     
+			>     //4.窗口聚合
+			>     //4.1 滚动窗口
+			>     //每5秒钟统计一次，在这过去的5秒钟内，各个路口通过红绿灯汽车的数量
+			>     //无重叠数据，所以只需要给一个参数即可，每5秒钟统计一下各个路口通过红绿灯汽车的数量
+			>     val result1: DataStream[CarWc] = carData.keyBy(0)
+			>       //.timeWindow(Time.seconds(5),Time.seconds(5))
+			>       .timeWindow(Time.seconds(5))
+			>       .sum(1)
+			>     result1.print()
+			>     
+			>     //4.2 滑动窗口
+			>     //每5秒钟统计一次，在这过去的10秒钟内，各个路口通过红绿灯汽车的数量。
+			>     val result2: DataStream[CarWc] = carData.keyBy(0)
+			>       .timeWindow(Time.seconds(10),Time.seconds(5))
+			>       .sum(1)
+			>     result2.print()
+			>     
+			>     //4.3 会话窗口(需要时间事件支持)
+			>     //指定会话超时，即会话之间的时间间隔，是指在规定的时间内如果没有数据活跃接入，则认为窗口结束，触发窗口计算
+			>     // .window(EventTimeSessionWindows.withGap(Time.seconds(30)))
+			>     //如果有时间事件,滚动窗口和滑动窗口也可以使用如下API
+			>     //.window(TumblingEventTimeWindows.of(Time.seconds(5)))
+			>     //.window(SlidingEventTimeWindows.of(Time.seconds(10),Time.seconds(5)))
+			>     
+			>     //5.启动执行
+			>     env.execute()
+			>       }
+			>     
+			>     }
+
+
+	* Count-Windows  
+	对于CountWindow，可以根据窗口实现原理的不同分成两类：  
+		1. tumbling-count-window (无重叠数据)  
+		按照个数进行统计，比如：  
+		对每个路口分别统计,统计在最近5条消息中,各自路口通过的汽车数量,相同的key每出现5次进行统计  
+		即对应的key出现的次数达到5次作为一个窗口,即相同的key出现5次才做一次sum聚合  
+		2. sliding-count-window (有重叠数据)  
+		对每个路口分别统计,统计在最近5条消息中,各自路口通过的汽车数量,相同的key每出现3次进行统计  
+		同样也是窗口长度和滑动窗口的操作：窗口长度是5，滑动长度是3  
+
+		3. 代码演示
+			1. 发送命令  
+			nc -lk 9999  
+			2. 发送内容  
+			9,3  
+			9,2  
+			9,7  
+			4,9  
+			2,6  
+			1,5  
+			2,3  
+			5,7  
+			5,4    
+
+			3. 需求
+			对每个路口分别统计,统计在最近5条消息中,各自路口通过的汽车数量,相同的key每出现5次进行统计(对应的key出现的次数达到5次作为一个窗口,即相同的key出现5次才做一次sum聚合)  
+			对每个路口分别统计,统计在最近5条消息中,各自路口通过的汽车数量,相同的key每出现3次进行统计  
+
+
+			4. 代码  
+				>     package cn.itcast.window
+				>     
+				>     import org.apache.flink.streaming.api.scala.{StreamExecutionEnvironment, _}
+				>     
+				>     object StreamingCountWindow {
+				>       //样例类CarWC(信号灯id,数量)
+				>       case class CarWc(sensorId: Int, carCnt: Int)
+				>     
+				>       def main(args: Array[String]): Unit = {
+				>     //1.准备环境
+				>     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+				>     //2.接收数据
+				>     val socketData = env.socketTextStream("node01", 9999)
+				>     //3.处理数据 socketData->carWcData
+				>     val carData: DataStream[CarWc] = socketData.map(line ={
+				>       val arr = line.split(",")
+				>       CarWc(arr(0).toInt, arr(1).toInt)
+				>     })
+				>     //4.窗口聚合
+				>     //4.1对每个路口分别统计,统计在最近5条消息中,各自路口通过的汽车数量,相同的key每出现5次进行统计
+				>     //对应的key出现的次数达到5次作为一个窗口,即相同的key出现5次才做一次sum聚合
+				>     carData.keyBy(0)
+				>     .countWindow(5)
+				>     .sum(1)
+				>     //.print()
+				>     
+				>     //4.2对每个路口分别统计,统计在最近5条消息中,各自路口通过的汽车数量,相同的key每出现3次进行统计
+				>     carData.keyBy(0)
+				>     .countWindow(5,3)
+				>     .sum(1)
+				>     .print()
+				>     
+				>     //5.启动执行
+				>     env.execute()
+				>       }
+				>     }
+
+
+
+	* Window Apply  
+	进行一些自定义处理，通过匿名内部类的方法来实现。当有一些复杂计算时会使用。  
+		1. 用法    
+		实现一个 WindowFunction 类  
+		指定该类的泛型为 [输入数据类型, 输出数据类型, keyBy中使用分组字段的类型, 窗口类型]  
+
+		2. 示例  
+		使用apply方法来实现单词统计  
+
+		3. 步骤  
+		1)获取流处理运行环境  
+		2)构建socket流数据源，并指定IP地址和端口号  
+		3)对接收到的数据转换成单词元组  
+		4)使用 keyBy 进行分流(分组)  
+		5)使用 timeWinodw 指定窗口的长度(每3秒计算一次)  
+		6)实现一个WindowFunction匿名内部类  
+			a.apply方法中实现聚合计算  
+			b.使用Collector.collect收集数据  
+		7)打印输出  
+		8)启动执行  
+		9)在Linux中，使用 nc -lk 端口号 监听端口，并发送单词  
+
+		4. 参考代码  
+			>     package cn.itcast.window
+			>     
+			>     import org.apache.flink.api.java.tuple.Tuple
+			>     import org.apache.flink.api.scala._
+			>     import org.apache.flink.streaming.api.scala.function.{RichWindowFunction, WindowFunction}
+			>     import org.apache.flink.streaming.api.scala.{DataStream, KeyedStream, StreamExecutionEnvironment, WindowedStream}
+			>     import org.apache.flink.streaming.api.windowing.time.Time
+			>     import org.apache.flink.streaming.api.windowing.windows.TimeWindow
+			>     import org.apache.flink.util.Collector
+			>     
+			>     object WindowApply {
+			>       def main(args: Array[String]): Unit = {
+			>     //1.准备环境
+			>     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+			>     //2.接收数据
+			>     val socketData: DataStream[String] = env.socketTextStream("node01", 9999)
+			>     //3.处理数据
+			>     val wordAndOne: DataStream[(String, Int)] = socketData.flatMap(_.split(" ")).map((_,1))
+			>     val groupedData: KeyedStream[(String, Int), String] = wordAndOne.keyBy(_._1)
+			>     val groupedData2: KeyedStream[(String, Int), Tuple] = wordAndOne.keyBy(0)
+			>     //4.窗口聚合,每5s计算一次
+			>     val windowData: WindowedStream[(String, Int), String, TimeWindow] = groupedData.timeWindow(Time.seconds(5))
+			>     val windowData2: WindowedStream[(String, Int), Tuple, TimeWindow] = groupedData2.timeWindow(Time.seconds(5))
+			>     //5.使用apply方法实现自定义聚合,使用WindowFunction
+			>     val result: DataStream[(String, Int)] = windowData.apply(new WindowFunction[(String, Int), (String, Int), String, TimeWindow] {
+			>       override def apply(key: String, window: TimeWindow, input: Iterable[(String, Int)], out: Collector[(String, Int)]): Unit = {
+			>     val wordAndCount: (String, Int) = input.reduce((t1, t2) ={
+			>       (t1._1, t1._2 + t2._2)
+			>     })
+			>     out.collect(wordAndCount)
+			>       }
+			>     })
+			>     //6.输出数据
+			>     result.print()
+			>     
+			>     val result2: DataStream[(String, Int)] = windowData2.apply(new RichWindowFunction[(String, Int), (String, Int), Tuple, TimeWindow] {
+			>       override def apply(key: Tuple, window: TimeWindow, input: Iterable[(String, Int)], out: Collector[(String, Int)]): Unit = {
+			>     val wordAndCount: (String, Int) = input.reduce((t1, t2) ={
+			>       (t1._1, t1._2 + t2._2)
+			>     })
+			>     out.collect(wordAndCount)
+			>       }
+			>     
+			>     })
+			>     result2.print()
+			>     
+			>     windowData.reduce((t1, t2) ={
+			>       (t1._1, t1._2 + t2._2)
+			>     }).print()
+			>     
+			>     windowData.sum(1).print()
+			>     
+			>     //7.启动执行
+			>     env.execute()
+			>       }
+			>     }
+
+
+##Flink的状态管理  
+
+###状态计算概述  
+
+官网对Flink的解释：  
+Stateful Computations over Data Streams，这是说Flink是一个有状态的数据流计算框架。  
+很多时候计算任务的结果不仅仅依赖于输入，还依赖于它的当前状态，  
+我们可以这样理解State：某task/operator在某时刻的一个中间结果，比如SparkStreaming中的updateStateByKey。   
+其实大多数的计算都是有状态的计算，比如wordcount，计算单词的count，这是一个很常见的业务场景。count做为输出，在计算的过程中要不断的把输入累加到count上去，那么count就是一个state。  
+
+我们前面写的例子中，如果没有包含状态管理。 那么一个task在处理过程中挂掉了，那么它在内存中的状态都会丢失，所有的数据都需要重新计算。   
+从容错和消息处理的语义上(at least once, exactly once)，Flink引入了state和checkpoint，可以说flink因为引入了state和checkpoint所以才支持的exactly once(精准一次)  
+
+* 无状态计算  
+	首先举一个无状态计算的例子：**消费延迟计算**。  
+	假设现在有一个消息队列，消息队列中有一个生产者持续往消费队列写入消息，多个消费者分别从消息队列中读取消息。  
+
+	从图上可以看出，  
+	生产者已经写入 16 条消息，Offset 停留在 15；  
+	有3个消费者，有的消费快，而有的消费慢。  
+	消费快的已经消费了 13 条数据，消费者慢的才消费了 7、8 条数据。  
+
+	如何实时统计每个消费者落后多少条数据，如图给出了输入输出的示例。可以了解到输入的时间点有一个时间戳，生产者将消息写到了某个时间点的位置，每个消费者同一时间点分别读到了什么位置。    
+	刚才也提到了生产者写入了 15 条，消费者分别读取了 10、7、12 条。那么问题来了，怎么将生产者、消费者的进度转换为右侧示意图信息呢？    
+	consumer 0 落后了 5 条，consumer 1 落后了 8 条，consumer 2 落后了 3 条，根据 Flink 的原理，此处需进行 Map 操作。Map 首先把消息读取进来，然后分别相减，即可知道每个 consumer 分别落后了几条。Map 一直往下发，则会得出最终结果。      
+	大家会发现，在这种模式的计算中，无论这条输入进来多少次，输出的结果都是一样的，因为单条输入中已经包含了所需的所有信息。消费落后等于生产者减去消费者。生产者的消费在单条数据中可以得到，消费者的数据也可以在单条数据中得到，所以相同输入可以得到相同输出，这就是一个无状态的计算。      
+
+* 有状态计算    
+	以访问日志统计量的例子进行说明，  
+	比如当前拿到一个 Nginx 访问日志，一条日志表示一个请求，记录该请求从哪里来，访问的哪个地址，需要实时统计每个地址总共被访问了多少次，也即每个 API 被调用了多少次。可以看到下面简化的输入和输出，输入第一条是在某个时间点请求 GET 了 /api/a；第二条日志记录了某个时间点 Post /api/b ;第三条是在某个时间点 GET了一个 /api/a，总共有 3 个 Nginx 日志。  
+	从这 3 条 Nginx 日志可以看出，第一条进来输出 /api/a 被访问了一次，第二条进来输出 /api/b 被访问了一次，紧接着又进来一条访问 api/a，所以 api/a 被访问了 2 次。不同的是，两条 /api/a 的 Nginx 日志进来的数据是一样的，但输出的时候结果可能不同，第一次输出 count=1 ，第二次输出 count=2，说明相同输入可能得到不同输出。输出的结果取决于当前请求的 API 地址之前累计被访问过多少次。第一条过来累计是 0 次，count = 1，第二条过来 API 的访问已经有一次了，所以 /api/a 访问累计次数 count=2。单条数据其实仅包含当前这次访问的信息，而不包含所有的信息。要得到这个结果，还需要依赖 API 累计访问的量，即状态。    
+	这个计算模式是将数据输入算子中，用来进行各种复杂的计算并输出数据。这个过程中算子会去访问之前存储在里面的状态。另外一方面，它还会把现在的数据对状态的影响实时更新，如果输入 200 条数据，最后输出就是 200 条结果。    
+
+    	有状态计算的场景  
+    	1. 去重：  
+    		比如上游的系统数据可能会有重复，落到下游系统时希望把重复的数据都去掉。去重需要先了解哪些数据来过，哪些数据还没有来，也就是把所有的主键都记录下来，当一条数据到来后，能够看到在主键当中是否存在。  
+    	2. 窗口计算：  
+    		比如统计每分钟 Nginx 日志 API 被访问了多少次。窗口是一分钟计算一次，在窗口触发前，如 08:00 ~ 08:01 这个窗口，前59秒的数据来了需要先放入内存，即需要把这个窗口之内的数据先保留下来，等到 8:01 时一分钟后，再将整个窗口内触发的数据输出。未触发的窗口数据也是一种状态。
+    	3. 机器学习/深度学习：  
+    		如训练的模型以及当前模型的参数也是一种状态，机器学习可能每次都用有一个数据集，需要在数据集上进行学习，对模型进行一个反馈。  
+     	4. 访问历史数据：  
+     		比如与昨天的数据进行对比，需要访问一些历史数据。如果每次从外部去读，对资源的消耗可能比较大，所以也希望把这些历史数据也放入状态中做对比。   
+
+* 通俗解释什么是状态  
+
+
+	先看一个非常经典的 word count 代码，这段代码会去监控本地的 9999 端口的数据并对网络端口输入进行词频统计，  
+	>     package cn.itcast.stream
+	>     import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment, _}
+	>     
+	>     object StreamFromSocket {
+	>       def main(args: Array[String]): Unit = {
+	>     //1.准备环境
+	>     val senv: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+	>     //2.接收数据
+	>     val data: DataStream[String] = senv.socketTextStream("node01",9999)
+	>     //3.处理数据
+	>     val result: DataStream[(String, Int)] = data
+	>       .flatMap(_.split(" "))
+	>       .map((_,1))
+	>       .keyBy(0)
+	>       .sum(1)
+	>     //4.输出数据
+	>     result.print()
+	>     //5.触发执行
+	>     senv.execute()
+	>       }
+	>     }
+
+	执行 netcat，然后在终端输入 hello world，执行程序会输出什么?  
+	答案很明显，(hello, 1)和 (word,1)
+
+
+	那么问题来了，如果再次在终端输入 hello world，程序会输入什么?  
+	答案其实也很明显，(hello, 2)和(world, 2)。  
+	为什么 Flink 知道之前已经处理过一次 hello world，这就是 state 发挥作用了，这里是被称为 keyed state 存储了之前需要统计的数据，所以帮助 Flink 知道 hello 和 world 分别出现过一次。
+	
+
+	回顾一下刚才这段 word count 代码。  keyby 的调用会创建 keyed stream 对 key 进行划分，这是使用 keyed state 的前提。  
+	在此之后，sum 方法会调用内置的 StreamGroupedReduce 实现。  
+	Tokenizer可以理解为是自定义的用来将输入内容切割并转为(单词,1)的形式。  
+
+###状态的类型  
+ 
+ 
+* 从Flink是否接管角度，可以分为：  
+	1. ManagedState(托管状态) ， 是Flink自动管理的State，在实际生产中推荐使用；   
+		1. Keyed State
+		2. Operator State     
+	2. RawState(原始状态)， 是原生态 State需要用户自己管理 。   
+		1. Operator State  
+
+* **两者的区别**：  
+	1. 从状态管理方式的方式来说，Managed State 由 Flink Runtime 管理，自动存储，自动恢复，在内存管理上有优化；而 Raw State 需要用户自己管理，需要自己序列化，Flink 不知道 State 中存入的数据是什么结构，只有用户自己知道，需要最终序列化为可存储的数据结构。  
+	2. 从状态数据结构来说，Managed State 支持已知的数据结构，如 Value、List、Map 等。而 Raw State只支持字节数组 ，所有状态都要转换为二进制字节数组才可以。  
+	3. 从推荐使用场景来说，Managed State 大多数情况下均可使用，而 Raw State 是当 Managed State 不够用时，比如需要自定义 Operator 时，才会使用 Raw State。  
+
+* Managed State  
+	* Keyed State    
+		* ValueState 存储单个值，比如 Wordcount，用 Word 当 Key，State 就是它的 Count。这里面的单个值可能是数值或者字符串，作为单个值，访问接口可能有两种，get 和 set。在 State 上体现的是 update(T) / T value()。
+		* MapState 的状态数据类型是 Map，在 State 上有 put、remove等。需要注意的是在 MapState 中的 key 和 Keyed state 中的 key 不是同一个。
+		* ListState 状态数据类型是 List，访问接口如 add、update 等。
+		* ReducingState 和 AggregatingState 与 ListState 都是同一个父类，但状态数据类型上是单个值，原因在于其中的 add 方法不是把当前的元素追加到列表中，而是把当前元素直接更新进了 Reducing 的结果中。
+		* AggregatingState 的区别是在访问接口，ReducingState 中 add（T）和 T get() 进去和出来的元素都是同一个类型，但在 AggregatingState 输入的 IN，输出的是 OUT。
+	* Operator State  
+		与Key无关的State，与Operator绑定的state，整个operator只对应一个state。    
+	
+		保存state的数据结构
+		ListState<T>
+		举例来说，Flink中的Kafka Connector，就使用了operator state。它会在每个connector实例中，保存该实例中消费topic的所有(partition, offset)映射
+
+	* Broadcast State  
+		Broadcast State 是 Flink 1.5 引入的新特性。在开发过程中，如果遇到需要下发/广播配置、规则等低吞吐事件流到下游所有 task 时，就可以使用 Broadcast State 特性。下游的 task 接收这些配置、规则并保存为 BroadcastState, 将这些配置应用到另一个数据流的计算中 。  
+		通常，我们首先会创建一个Keyed或Non-Keyed的Data Stream，然后再创建一个Broadcasted Stream，最后通过Data Stream来连接（调用connect方法）到Broadcasted Stream上，这样实现将Broadcast State广播到Data Stream下游的每个Task中。?  
+		如果Data Stream是Keyed Stream，则连接到Broadcasted Stream后，添加处理ProcessFunction时需要使用KeyedBroadcastProcessFunction来实现，
+		
+##Flink的容错  
+
+###CheckPoint  
+* 什么是CheckPoint  
+CheckPoint是Flink实现容错机制的最核心的功能  
+根据配置周期性的基于Stream中各个Operator的状态来生成Snapshot快照，从而将这些状态数据定期持久化存储下来； 
+当Flink程序一旦意外崩溃时，重新运行程序时可以有选择地从这些Snapshot进行恢复，从而修正因为故障带来的程序数据状态中断。  
+
+Flink的checkpoint机制原理来自“Chandy-Lamport algorithm”算法。    
+
+
+
+>     区分State和Checkpoint  
+>     CheckPoint是State快照  
+>     1. State: 
+>     一般指一个具体的Task/Operator的状态(operator的状态表示一些算子在运行的过程中会产生的一些中间结果)  
+>     State数据默认保存在Java的堆内存中/TaskManage节点的内存中  
+>     State可以被记录，在失败的情况下数据还可以恢复  
+>     2. Checkpoint:   
+>     	表示了一个Flink Job在一个特定时刻的一份全局状态快照，即包含了所有Task/Operator的状态  
+>     	可以理解为Checkpoint是把State数据定时持久化存储了  
+>     比如KafkaConsumer算子中维护的Offset状态,当任务重新恢复的时候可以从Checkpoint中获取  
+>     
+
+
+
+* CheckPoint执行流程  
+	* 简单流程      
+	每个需要checkpoint 的应用在启动时， Flink 的JobManager 为其创建一个CheckpointCoordinator(检查点协调器)，CheckpointCoordinator 全权负责本应用的快照制作  
+		1. CheckpointCoordinator周期性的向该流应用的所有Source算子发送Barrier。   
+		2. 当某个Source算子收到一个barrier时，便暂停数据处理过程，然后将自己的当前状态制作成快照，并保存到指定的持久化存储中，最后向CheckpointCoordinator报告自己快照制作情况，同时向自身所有下游算子广播该Barrier，恢复数据处理   
+		3. 下游算子收到Barrier之后，会暂停自己的数据处理过程，然后将自身的相关状态制作成快照，并保存到指定的持久化存储中，最后向CheckpointCoordinator报告自身快照情况，同时向自身所有下游算子广播该Barrier，恢复数据处理。   
+		4. 每个算子按照步骤3不断制作快照并向下游广播，直到最后Barrier传递到Sink算子，快照制作完成。   
+		5. 当CheckpointCoordinator收到所有算子的报告之后，认为该周期的快照制作成功; 否则，如果在规定的时间内没有收到所有算子的报告，则认为本周期快照制作失败 
+	* 详细流程  
+	下图左侧是 Checkpoint Coordinator，是整个 Checkpoint 的发起者，中间是由两个 source，一个 sink 组成的 Flink 作业，最右侧的是持久化存储，在大部分用户场景中对应 HDFS。  
+		1. Checkpoint Coordinator 向所有 source 节点 trigger Checkpoint。  
+		2. source 节点向下游广播 barrier，这个 barrier 就是实现 Chandy-Lamport 分布式快照算法的核心，下游的 task 只有收到所有 input 的 barrier 才会执行相应的 Checkpoint。
+		3. 当 task 完成 state 备份后，会将备份数据的地址（state handle）通知给 Checkpoint coordinator。
+		4. 下游的 sink 节点收集齐上游两个 input 的 barrier 之后，会执行本地快照，
+		这里还展示了 RocksDB incremental Checkpoint (增量Checkpoint)的流程，首先 RocksDB 会全量刷数据到磁盘上（红色大三角表示），然后 Flink 框架会从中选择没有上传的文件进行持久化备份（紫色小三角）。
+		5. 同样的，sink 节点在完成自己的 Checkpoint 之后，会将 state handle 返回通知 Coordinator。
+		6. 最后，当 Checkpoint coordinator 收集齐所有 task 的 state handle，就认为这一次的 Checkpoint 全局完成了，向持久化存储中再备份一个 Checkpoint meta 文件。  
