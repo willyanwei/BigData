@@ -128,3 +128,66 @@ Reduce 大致分为 copy、sort、reduce 三个阶段，重点在前两个阶段
 		*  Sort阶段 ：在对数据进行合并的同时，会进行排序操作，由于 MapTask 阶段已经对数 据进行了局部的排序，ReduceTask 只需保证 Copy 的数据的最终整体有效性即可。 Shuwle 中的缓冲区大小会影响到 mapreduce 程序的执行效率，原则上说，缓冲区越大， 磁盘io的次数越少，执行速度就越快 缓冲区的大小可以通过参数调整, 参数：mapreduce.task.io.sort.mb 默认100M
 
 	
+
+### wordcount案例
+
+1. MapReduce开发阶段    
+MapReduce 的开发一共有八个步骤, 其中 Map 阶段分为 2 个步骤，Shuwle 阶段 4 个步 骤，Reduce 阶段分为 2 个步骤  
+
+	1. Map 阶段 2 个步骤      
+设置 InputFormat 类, 将数据切分为 Key-Value(K1和V1) 对, 输入到第二步  
+自定义 Map 逻辑, 将第一步的结果转换成另外的 Key-Value（K2和V2） 对, 输出结果  
+	2. Shuffle 阶段 4 个步骤  
+对输出的 Key-Value 对进行分区  
+对不同分区的数据按照相同的 Key 排序  
+(可选) 对分组过的数据初步规约, 降低数据的网络拷贝  
+对数据进行分组, 相同 Key 的 Value 放入一个集合中    
+	3. Reduce 阶段 2 个步骤    
+对多个 Map 任务的结果进行排序以及合并, 编写 Reduce 函数实现自己的逻辑, 对输入的 Key-Value 进行处理, 转为新的 Key-Value（K3和V3）输出    
+设置 OutputFormat 处理并保存 Reduce 输出的 Key-Value 数据  
+以上所有步骤加起来一共8个。    
+  
+2. mapReduce 调用 API( wordCount案例 )      
+
+	1. 创建jar包  
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-6495688099c778ea.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="80%">   
+		
+		
+		pom.xml文件  
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-e2f2cd40ece40e44.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%"> 
+		
+		
+		
+		WordCountMapper.java  
+		
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-05ae43008442b958.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%"> 
+		
+		
+		
+		WordCountReducer.java  
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-a2909cc874b3e57a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%"> 
+		
+		
+		WordCountDriver.java
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-6ea33e0addc947f2.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">   
+
+
+	2. 上传源数据
+		在hdfs上创建文件夹    
+
+		hadoop fs -mkdir -p /wordcount/input  
+		把1.txt 2.txt放在/wordcount/input目录下  
+
+		hadoop fs -put 1.txt 2.txt /wordcount/input    
+
+	3. 上传jar包  
+		上传wordcount.jar
+
+	4. 运行
+		hadoop jar wordcount.jar cn.itcast.mapreduce.WordCountDriver
+
+	5. 查看生成的结果文件  
+		hdfs dfs -cat /wordcount/output/part-r-00000    
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-d30ab18670008713.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">     
+
+	参考链接：https://www.jianshu.com/p/5506568eea46

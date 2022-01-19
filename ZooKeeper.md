@@ -73,6 +73,9 @@ ZK集群中，服务器有两种角色，Leader和Learner，Learner角色又分�
 		* Observer观察者：接收客户端连接，将写请求转发给Leader，但Observer不参加投票过程，只同步Leader状态，Observer的目的是为了扩展系统，提高读取速度
 	* Client客户端：请求发起方
 
+<img src="https://upload-images.jianshu.io/upload_images/22827736-adacfbf8b0a46185.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+
 ## ZK工作机制
 从设计模式角度来看，ZK是一个基于观察者模式设计的分布式管理框架，他负责管理大家都关心的数据，然后接收观察者的注册，一旦数据发生变化，ZK就通知已经在ZK注册的观察者做出相应的反应  
 > ZK = 文件系统 + 通知机制  
@@ -110,6 +113,9 @@ ZK集群中，服务器有两种角色，Leader和Learner，Learner角色又分�
 		* 服务器 3 启动，给自己投票，同时与之前启动的服务器 1,2 交换信息，由于服务器 3 的编号最大所以服务器 3 胜出，此时投票数正好大于半数，所以服务器 3 成为领导者，服务器 1,2 成为小弟。
 		* 服务器 4 启动，给自己投票，同时与之前启动的服务器 1,2,3 交换信息，尽管服务器 4 的编号大，但之前服务器 3 已经胜出，所以服务器 4 只能成为小弟。
 		* 服务器 5 启动，后面的逻辑同服务器 4 成为小弟。
+
+		<img src="https://upload-images.jianshu.io/upload_images/22827736-0ad0797644bb0593.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
 	
 	* 非全新集群选举
 		对于正常运行的ZK集群，中途有机器宕机，需要重新进行选举，选举过程中就需要加入数据ID、服务器ID、逻辑时钟

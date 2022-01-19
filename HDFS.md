@@ -1,10 +1,10 @@
 # HDFS  
-###大数据学习线路图
+##大数据学习线路图
 
 <img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
 
 ----------
-###缩略词  
+##缩略词  
 NN - NameNode  
 SNN - Secondry NameNode  
 DN - DataNode  
@@ -12,14 +12,14 @@ DN - DataNode
 
 ----------
 
-###概念
+##概念  
 HDFS-Hadoop Distributed File System
 ----------
 * 为什么要有HDFS  
 随着区块链、大数据等技术的推动，全球数据量正在无限制地扩展和增加。分布式存储的兴起与互联网的发展密不可分，互联网公司由于其大数据、轻资产的特点，通常使用大规模分布式存储系统
 
 ----------
-###设计思想
+##设计思想
 * 设计思想
 	* 切块存储
     当一个文件过大，一个节点存储不下，采用分块存储  
@@ -42,10 +42,10 @@ HDFS-Hadoop Distributed File System
 > 100个node，副本50个，HDFS系统需要同时维护50个副本，在50个副本中，一旦有节点宕机，就需要进行复制工作
 
 ----------
-###整体架构  
+##整体架构  
 * 架构  
 HDFS 采用Master/Slave的架构来存储数据，一个主节点多个从节点
-这种架构主要由四个部分组成，分别为HDFS Client、NameNode、DataNode和Secondary
+这种架构主要由四个部分组成，分别为HDFS Client、NameNode、DataNode和SecondaryNameNode
 	* Client
 	    * 文件切分  
       		文件上传时，Client将文件切分为一个一个的block，再进行存储
@@ -86,7 +86,7 @@ HDFS 采用Master/Slave的架构来存储数据，一个主节点多个从节点
 
 
 ----------
-###优点缺点  
+##优点缺点  
 * 适用场景  
 HDFS专门为解决大数据的存储问题而产生
 	*  可存储超大文件(PB级别)
@@ -133,7 +133,7 @@ HDFS专门为解决大数据的存储问题而产生
 
 
 ----------
-###HDFS应用  
+##HDFS应用  
 * 命令行  
 	* HDFS命令方式  
 		* 开启hadoop或hdfs客户端：
@@ -181,7 +181,7 @@ HDFS专门为解决大数据的存储问题而产生
 
 
 ----------
-### 四大机制两大核心  
+## 四大机制两大核心  
 
 * 四大机制  
 	* 心跳机制  

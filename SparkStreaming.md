@@ -1,6 +1,11 @@
-##SparkStreaming  
+#SparkStreaming  
 
-###为什么要有SparkStreaming 
+##大数据学习线路图
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+
+##为什么要有SparkStreaming 
 
 提到spark streaming，我们就必须了解一下BDAS（Berkeley Data Analytics Stack），这个伯克利大学提出的关于数据分析的软件栈。  
 从它的视角来看，目前的大数据处理可以分为如下三个类型：  
@@ -34,18 +39,23 @@ Hadoop主导的大数据计算时代，主要是离线计算，当程序进行�
 2. 没演讲一个字进行一次统计： 我+1 们+1 是+1 ....   
 演讲结束，统计结果也就出来了  
 
-### 什么是SparkStreaming  
+## 什么是SparkStreaming  
 
 SS接收实时输入数据流，根据时间将数据流切分为连续多个batch，然后由SparkCore引擎一次处理一批数据，最终生成批“形式”结果流  
 
+<img src="https://upload-images.jianshu.io/upload_images/22827736-6c6f807fb8db82be.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%" >   
 
-### SS的核心参数  
+把实时输入数据流切分成多个批数据，交给spark引擎处理并分批生成数据流。  
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-4fd8c18d40c4b245.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%" >   
+
+## SS的核心参数  
 SS的核心参数是设置流数据被分为多个Batch的**时间间隔**，每个Spark引擎处理的就是这个时间间隔内的数据。  
 在SS中，Job之间有可能存在依赖关系，所以后面的作业必须确保前面的作业执行完后才被调度执行；  
 如果批处理的时间超过batch duration，意味着数据处理速度跟不上数据接收速度，那么会导致后面提交的batch任务无法按时执行，随着时间的推移，越来越多的作业被延迟执行，最后导致整个Streaming作业被阻塞，所以需要设置一个合理的批处理间隔以确保作业能够在这个批处理间隔内执行完成。  
 
 
-### SS特性 
+## SS特性 
 
 * 高集成性  
 	 1. 用于处理流式计算问题，能够与Spark其他模块无缝集合
@@ -64,7 +74,7 @@ SS的核心参数是设置流数据被分为多个Batch的**时间间隔**，每
 	2. 对于目前版本的Spark Streaming而言，其最小的Batch Size的选取在0.5~2秒钟之间（Storm目前最小的延迟是100ms左右），所以Spark Streaming能够满足除对实时性要求非常高（如高频实时交易）之外的所有流式准实时计算场景。
 
 
-### SS工作原理
+## SS工作原理
 * 原理  
 	* 接收实时输入数据流，将数据拆分为多个batch，比如每收集一秒的数据封装为一个batch，然后将每个batch交给spark的计算引擎进行处理，最后会生产出一个数据流，其中的数据就是也是由一个一个的batch所组成的  
 	* 严格来说Spark Streaming并不是一个真正的实时框架，数据是分成多个batch分批次进行处理的  

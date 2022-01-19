@@ -1,11 +1,12 @@
-### HBase
+#HBase
 
+##大数据学习线路图
 
+<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
 
 ## 什么是HBase
   
 * Hadoop DataBase  
-	* 
 	* 建立在Hadoop文件系统之上的面向列的NoSQL分布式数据库
 	* 提供对数据的随机实时读写访问
 	* Hbase利用HDFS作为其文件存储系统
@@ -46,6 +47,13 @@
 	* 对于查询会有一些毛刺，特别是compact时，平均查询延迟在2~3ms，但是毛刺时会升高到几十到100多MS
 
 ## HBase数据模型
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-3b6242fc4cc03e72.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-5058acd549be1c72.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
 * RowKey
 	* RowKey的概念和mysql中的主键是完全一样的，HBase使用RowKey来唯一区分某一行的数据
 	* HBase只支持三个查询方式
@@ -127,13 +135,21 @@ HBase是三维有序存储的，通过rowkey（行键），column key（column f
 
 ## HBase架构  
 
+
+
 HBase与Hadoop的关系  
 HDFS为HBase提供可靠的底层存储支撑  
 MR为HBase提供高性能计算能力  
+<img src="https://upload-images.jianshu.io/upload_images/22827736-cab11be0cdccaebb.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+
 
 HBase中每张表都按照一定的范围被分割成多个子表HRegion，  
 默认一个HRegion超过256M就要被分割成两个，  
 HRegion由HRegionServer管理  
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-e0f89909bfb1a263.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
 
 * Client  
 Client 是整个HBase系统的入口，客户端使用RPC协议与HMaster和HRegionServer进行通信
@@ -189,6 +205,7 @@ Client 是整个HBase系统的入口，客户端使用RPC协议与HMaster和HReg
 			* 该HLog文件是否已经在OldWALs目录中存在10分钟。为了更加灵活地管理HLog生命周期，系统提供了参数设置日志文件的TTL（参数'hbase.master.logcleaner.ttl'，默认10分钟），默认情况下oldWALs里面的HLog文件最多可以再保存10分钟。
 
 ## 数据存储  
+
 
 
 ## 数据寻址
@@ -290,4 +307,66 @@ LSM的核心思想就是放弃部分读能力，换取写入的最大化能力�
 			> 2. B+树所有的Data域在叶子节点，一般来说都会进行一个优化，就是将叶子节点用指针串起全部数据，这样就能进行区间访问了  
 			> 3. 查询效率主要是通过I/O次数来判断：B+树中，层数少，只有叶子节点存数据，这些特点能够保证磁盘I/O次数少，效率高  
 
+
+# Hbase 操作
+* HBase包含可以与HBase进行通信的Shell。 HBase使用Hadoop文件系统来存储数据。它拥有一个主服务器和区域服务器。数据存储将在区域(表)的形式。这些区域被分割并存储在区域服务器。
+主服务器管理这些区域服务器，所有这些任务发生在HDFS。
+	* 下面给出的是一些由HBase Shell支持的命令。通用命令  
+	status: 提供HBase的状态，例如，服务器的数量。  
+	version: 提供正在使用HBase版本。  
+	table_help: 表引用命令提供帮助。   
+	whoami: 提供有关用户的信息。  
+
+	* 数据定义语言， 这些是关于HBase在表中操作的命令。  
+	create: 创建一个表。   
+	list: 列出HBase的所有表。  
+	disable: 禁用表。  
+	is_disabled: 验证表是否被禁用。  
+	enable: 启用一个表。  
+	is_enabled: 验证表是否已启用。   
+	describe: 提供了一个表的描述。  
+	alter: 改变一个表。  
+	exists: 验证表是否存在。  
+	drop: 从HBase中删除表。  
+	drop_all: 丢弃在命令中给出匹配“regex”的表。  
+	* Java Admin API: 在此之前所有的上述命令，Java提供了一个通过API编程来管理实现DDL功能。在这个org.apache.hadoop.hbase.client包中有HBaseAdmin和HTableDescriptor 这两个重要的类提供DDL功能。  
+
+	* 数据操纵语言
+	put: 把指定列在指定的行中单元格的值在一个特定的表。  
+	get: 取行或单元格的内容。  
+	delete: 删除表中的单元格值。  
+	deleteall: 删除给定行的所有单元格。    
+	scan: 扫描并返回表数据。    
+	count: 计数并返回表中的行的数目。    
+	truncate: 禁用，删除和重新创建一个指定的表。     
+	
+	* Java client API: 在此之前所有上述命令，Java提供了一个客户端API来实现DML功能，CRUD（创建检索更新删除）操作更多的是通过编程，在org.apache.hadoop.hbase.client包下。 在此包HTable 的 Put和Get是重要的类。  
+
+	启动 HBase Shell  
+	要访问HBase shell，必须导航进入到HBase的主文件夹。  
+	cd /usr/localhost/  
+	cd Hbase  
+	可以使用“hbase shell”命令来启动HBase的交互shell，如下图所示。  
+	./bin/hbase shell  
+	如果已成功在系统中安装HBase，那么它会给出 HBase shell 提示符，如下图所示。  
+	HBase Shell; enter 'help<RETURN>' for list of supported commands.Type   "exit<RETURN>" to leave the HBase ShellVersion 0.94.23,   rf42302b28aceaab773b15f234aa8718fff7eea3c, Wed Aug 2700:54:09 UTC 2014  
+
+	hbase(main):001:0>    
+	要退出交互shell命令，在任何时候键入 exit 或使用<Ctrl + C>。进一步处理检查shell功能之前，使用 list 命令用于列出所有可用命令。list是用来获取所有HBase 表的列表。首先，验证安装HBase在系统中使用如下所示。  
+	hbase(main):001:0> list  
+	当输入这个命令，它给出下面的输出。  
+	hbase(main):001:0> list  
+	TABLE  
  
+# HIVE 和 Hbase 整合
+
+* hive和Hbase的整合使得hive能够操作Hbase的数据表  
+	* Hive是建立在Hadoop之上的数据仓库基础构架、是为了减少MapReduce编写工作的批处理系统，Hive本身不存储和计算数据，它完全依赖于HDFS和MapReduce。Hive可以理解为一个客户端工具，将我们的sql操作转换为相应的MapReduce jobs，然后在Hadoop上面运行。   
+    * HBase全称为Hadoop Database，即HBase是Hadoop的数据库，是一个分布式的存储系统。HBase利用Hadoop的HDFS作为其文件存储系统，利用Hadoop的MapReduce来处理HBase中的海量数据。利用Zookeeper作为其协调工具。   
+    * HBase数据库的缺点在于——语法格式异类，没有类sql的查询方式，因此在实际的业务当中操作和计算数据非常不方便，但是Hive就不一样了，Hive支持标准的sql语法，于是我们就希望通过Hive这个客户端工具对HBase中的数据进行操作与查询，进行相应的数据挖掘，这就是所谓Hive与hBase整合的含义。
+
+
+	> 整合后：   
+	> select * from table   
+	> group by word    
+	> order by word;

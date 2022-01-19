@@ -1,7 +1,9 @@
 ### HIVE  
 
 
-
+### 大数据学习线路图  
+<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+  
   
 
 
@@ -67,6 +69,11 @@ select * from a join b on a.pid = b.pid
 	因为没有增删改，所以只要用来做OLAP而不是OLTP
 
 > OLTP? OLAP?  
+> OLTP（on-line transaction processing）翻译为联机事务处理，   
+> OLAP（On-Line Analytical Processing）翻译为联机分析处理，  
+> 从字面上来看OLTP是做事务处理，OLAP是做分析处理。  
+> 从对数据库操作来看，OLTP主要是对数据的增删改，OLAP是对数据的查询。  
+
 
 ## Hive架构  
 * 用户接口层
@@ -87,6 +94,13 @@ select * from a join b on a.pid = b.pid
 	在编译过程中肯定会有很多SQL转化成MR程序，存在包含关系、重复的操作，在优化器中可以将重复的操作过滤掉  
 	* 执行器  
 	将SQL语句通过Hive自带的MR模板，编译成MR程序，首先生成一个逻辑执行计划，再生成一个物理执行计划  
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-c7ea6a9f54847c96.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="70%">
+
+
+<img src="https://upload-images.jianshu.io/upload_images/22827736-9b9dbf616afb017a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+
+
 
 ## Hive的数据组成  
 * 库  DataBase  
@@ -151,3 +165,60 @@ select * from a join b on a.pid = b.pid
 	* 分桶表
 
 
+## 案例
+
+* Wordcount案例
+
+	* 建表  
+create table docs(line string);  
+	* 加载数据到表里  
+load data local inpath '/hadoop/hadoop2.9/word.txt' into table docs;  
+load data inpath 'hdfs://test/word.txt' into table docs  
+	* 按照空格切割查询,形成数组  
+select split(line,' ') from docs;  
+执行  
+hive> select split(line,' ') from docs;  
+OK  
+["from","cell_monitor","cm","",""]  
+["insert","overwrite","table","cell_drop_monitor"]  
+[""]  
+["from","cell_monitor","cm","",""]  
+["insert",""]  
+
+	* explode(array) 数组一条记录有多个参数,将参数拆分,每个参数生成一列  
+hive> select explode(split(line,' '))from docs;  
+OK  
+from  
+cell_monitor  
+cm  
+
+
+		insert  
+overwrite  
+table  
+cell_drop_monitor  
+
+		from  
+cell_monitor  
+cm  
+
+	* 创建结果表  
+create table wc(word string,totalword int);  
+
+	* 统计SQL语句  
+from (select explode(split(line,' ')) as word from docs) w insert into table wc    
+select word, count(1) as totalword  
+group by word  
+order by word;  
+
+	* 结果  
+hive> select * from wc;  
+OK  
+cell_drop_monitor	1  
+cell_monitor	2  
+cm	2  
+from	2  
+insert	2  
+overwrite	1  
+table	1  
+Time taken: 0.18 seconds, Fetched: 8 row(s)  
