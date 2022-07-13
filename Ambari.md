@@ -56,3 +56,8 @@ Ambari 自身也是一个分布式架构的软件，主要由两部分组成：
 	> Ambari Server 支持 Rest API，这样可以很容易的扩展和定制化 Ambari。  
 	> 甚至于不用登陆 Ambari 的 GUI，只需要在命令行通过 curl 就可以控制 
 	> Ambari，以及控制 Hadoop 的 cluster
+
+
+## Ambria+HDP安装大数据集群
+CentOS7+Ambria2.6.1.0+HDP2.6.4.0安装详细步骤
+https://blog.csdn.net/weixin_39565641/article/details/103522830
