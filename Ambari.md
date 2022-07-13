@@ -1,7 +1,7 @@
-#Ambari  
+# Ambari  
 
 
-##Hadoop管理工具  
+## Hadoop管理工具  
 
 
 当你利用 Hadoop 进行大数据分析和处理时，首先你需要确保配置、部署和管理集群。这个即不容易也没有什么乐趣，但却受到了开发者们的钟爱。本文提供了5款工具帮助你实现。
@@ -28,17 +28,17 @@ StackIQ Rock+ Big Data是一款Rocks的商业流通集群管理软件，该公�
 Zettaset Orchestrator是端到端的Hadoop管理产品，支持多个Hadoop的分布。Zettaset吹捧Orchestrator的基于UI的经验和MAAPS(管理、可用性、自动化、配置和安全)的处理能力。
 
 
-##什么是Ambari  
+## 什么是Ambari  
 Ambari 跟 Hadoop 等开源软件一样，也是 Apache Software Foundation 中的一个项目，并且是顶级项目。  
 Ambari 的作用来说，就是创建、管理、监视 Hadoop 的集群，但是这里的 Hadoop 是广义，指的是 Hadoop 整个生态圈（例如 Hive，Hbase，Sqoop，Zookeeper 等），而并不仅是特指 Hadoop。  
 用一句话来说，Ambari 就是为了让 Hadoop 以及相关的大数据软件更容易使用的一个工具。
 
 
-##为什么需要Ambari
+## 为什么需要Ambari
 那些苦苦花费好几天去安装、调试 Hadoop 的初学者是最能体会到 Ambari 的方便之处的。   
 而且，Ambari 现在所支持的平台组件也越来越多，例如流行的 Spark，Storm 等计算框架，以及资源调度平台 YARN 等，我们都能轻松地通过 Ambari 来进行部署。
 
-##Ambari架构和工作原理  
+## Ambari架构和工作原理  
 1. 架构
 Ambari 自身也是一个分布式架构的软件，主要由两部分组成：  
 （1）Ambari Server   
