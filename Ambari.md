@@ -58,6 +58,11 @@ Ambari 自身也是一个分布式架构的软件，主要由两部分组成：
 	> Ambari，以及控制 Hadoop 的 cluster
 
 
-## Ambria+HDP安装大数据集群
-CentOS7+Ambria2.6.1.0+HDP2.6.4.0安装详细步骤
-https://blog.csdn.net/weixin_39565641/article/details/103522830
+## Ambria+HDP安装大数据集群  
+Ambari + HDP介绍：  
+* Ambari：WEB应用程序，后台为Ambari Server，负责与HDP部署的集群工作节点进行通讯，集群控制节点包括Hdfs，Spark，Zk，Hive，Hbase等等。  
+* HDP：HDP包中包含了很多常用的工具，比如Hadoop，Hive，Hbase，Spark等。  
+* HDP-Util：包含了公共包，比如ZK等一些公共组件。  
+  
+CentOS7+Ambria2.6.1.0+HDP2.6.4.0安装详细步骤  
+https://blog.csdn.net/weixin_39565641/article/details/103522830  
