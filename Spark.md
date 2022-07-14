@@ -2,7 +2,7 @@
 
 ##大数据学习线路图
 
-<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="70%">
 
 ## Spark起源
 Spark是一种快速、通用、可扩展的大数据分析引擎，  
@@ -54,17 +54,19 @@ Spark 设计为可以高效地在一个计算节点到数千个计算节点之�
 
 ## 为什么要Spark
 
-MapReduce模型的痛点:  
-MR主要适用于批处理  
-
-* 不擅长实时计算
-MapReduce无法像MySQL一样，在毫秒或者秒级内返回结果。
-* 不擅长流式计算
-流式计算的输入数据是动态的，而MapReduce的输入数据集是静态的，不能动态变化。这是因为MapReduce自身的设计特点决定了数据源必须是静态的。
-* 不擅长DAG（有向图）计算  
-DAG：多个应用程序存在依赖关系，后一个应用程序的输入为前一个的输出。  
-在这种情况下，MapReduce并不是不能做，而是使用后，每个MapReduce作业的输出结果都会写入到磁盘，会造成大量的磁盘IO，导致性能非常的低下。
-
+* MapReduce模型的痛点:  MR主要适用于批处理  
+	* 不擅长实时计算
+	MapReduce无法像MySQL一样，在毫秒或者秒级内返回结果。
+	* 不擅长流式计算
+	流式计算的输入数据是动态的，而MapReduce的输入数据集是静态的，不能动态变化。这是因为MapReduce自身的设计特点决定了数据源必须是静态的。
+	* 不擅长DAG（有向图）计算  
+	DAG：多个应用程序存在依赖关系，后一个应用程序的输入为前一个的输出。  
+	在这种情况下，MapReduce并不是不能做，而是使用后，每个MapReduce作业的输出结果都会写入到磁盘，会造成大量的磁盘IO，导致性能非常的低下。
+* Spark适用于各种各样原先需要多种不同的分布式平台的场景
+	* 批处理--Spark
+	* 迭代算法--从某个值开始，不断地由上一步的结果计算（或推断）出下一步的结果
+	* 交互式查询--SparkSQL，提供易使用的交互式查询语言，如SQL.DBMS负责执行查询命令，并将查询结果显示在屏幕上
+	* 流处理--SparkStreaming 
 
 ## Spark的特点
 
