@@ -1,9 +1,9 @@
 # MapReduce  
-### 大数据学习线路图  
+## 大数据学习线路图  
 <img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
   
 ----------
-###缩略词  
+## 缩略词  
 NN - NameNode  
 SNN - Secondry NameNode  
 DN - DataNode  
@@ -12,7 +12,7 @@ MR - MapReduce
 
 ----------
 
-###概念
+## 概念
 
 MapReduce-大数据并行处理框架，分布式计算框架  
 源自于google的MapReduce论文，发表于2004年12月，Hadoop MapReduce是google MapReduce 克隆版。
@@ -24,7 +24,7 @@ MR适合在大量计算机组成的分布式并行环境里进行数据处理
 
 
 ----------
-### 设计构思   
+## 设计构思   
 
 * 分而治之  
 	* Map负责“分”  
@@ -35,7 +35,7 @@ MR适合在大量计算机组成的分布式并行环境里进行数据处理
 
 ----------
 
-###架构 
+## 架构 
 * 架构   
 MapReduce运行在YARN集群，节点包括：ResourceManager,NodeManager  
 
@@ -50,7 +50,7 @@ MapReduce运行在YARN集群，节点包括：ResourceManager,NodeManager
 * WordCount为例  
 
 
-###优缺点
+## 优缺点
 * 优点  
 	* MapReduce是一个分布式运算程序的编程框架，核心功能是将用户编写的业务逻辑代码和自带默认组件整合成一个完整的分布式运算程序，并发运行在Hadoop集群上。
 	* MapReduce设计并提供了统一的计算框架，为程序员隐藏了绝大多数系统层面的处理细节。 为程序员提供一个抽象和高层的编程接口和框架。程序员仅需要关心其应用层的具体计算问题，仅需编写少量的处理应用本身计算问题的程序代码。如何具体完成这个并行计算任务所相关的诸多系统层细节被隐藏起来,交给计算框架去处理：
@@ -69,7 +69,7 @@ MapReduce运行在YARN集群，节点包括：ResourceManager,NodeManager
 ----------
 
 
-###运行机制
+## 运行机制
 
 统计单词个数 word count为例：  
 		<img src="https://upload-images.jianshu.io/upload_images/22827736-7998850010a324a2.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%"> 
@@ -129,7 +129,7 @@ Reduce 大致分为 copy、sort、reduce 三个阶段，重点在前两个阶段
 
 	
 
-### wordcount案例
+## wordcount案例
 
 1. MapReduce开发阶段    
 MapReduce 的开发一共有八个步骤, 其中 Map 阶段分为 2 个步骤，Shuwle 阶段 4 个步 骤，Reduce 阶段分为 2 个步骤  
