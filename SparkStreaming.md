@@ -1,11 +1,11 @@
-#SparkStreaming  
+# SparkStreaming  
 
-##大数据学习线路图
+## 大数据学习线路图
 
-<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="100%">
+<img src="https://upload-images.jianshu.io/upload_images/22827736-ab17271698b9385a.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" width="70%">
 
 
-##为什么要有SparkStreaming 
+## 为什么要有SparkStreaming 
 
 提到spark streaming，我们就必须了解一下BDAS（Berkeley Data Analytics Stack），这个伯克利大学提出的关于数据分析的软件栈。  
 从它的视角来看，目前的大数据处理可以分为如下三个类型：  
