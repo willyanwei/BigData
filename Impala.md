@@ -1,11 +1,9 @@
-#Impala  
-
+# Impala  
 
 Cloudera成立于2008年，在企业和大型机构在寻求解决棘手的大数据问题时，往往会使用开源软件基础架构Hadoop的服务。  
 2018年10月，均为开源平台的Cloudera与Hortonworks公司宣布他们以52亿美元的价格合并。
 由于Hadoop深受客户欢迎，许多公司都推出了各自版本的Hadoop，也有一些公司则围绕Hadoop开发产品。  
 在Hadoop生态系统中，规模最大、知名度最高的公司则是Cloudera。
-
 
 ## Impala简介
 1. 实时SQL查询引擎
@@ -13,7 +11,6 @@ Cloudera成立于2008年，在企业和大型机构在寻求解决棘手的大�
 3. Cloudera在受到Google的Dremel启发下开发的实时交互SQL大数据查询工具；    
 4. Impala没有再使用缓慢的Hive+MR批处理，而且通过使用与商用并行关系数据库中类似的分布式查询引擎，可以直接从HDFS或HBase中的Select、Join和统计函数查询数据，能查询存储在Hadoop的HDFS和HBase中的PB级大数据，从而大大降低延迟；      
 5. Impala最大的卖点就是——快速
-
 
 ## Impala系统架构  
 Impala主要由Impalad， State Store和CLI组成。  
