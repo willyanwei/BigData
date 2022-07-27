@@ -16,6 +16,11 @@ Cloudera成立于2008年，在企业和大型机构在寻求解决棘手的大�
 Impala 是可用于查询大数据的工具的补充。  
 Impala 不会替代基于 MapReduce 构建的批处理框架，例如 Hive。Hive 和其他基于 MapReduce 构建的框架最适合长时间运行的批处理作业，例如涉及提取、转换和加载 (ETL) 类型作业的批处理。
 
+Impala是spark萌芽时期cdh开源的c++编写的sql执行引擎，也用到了有向无环图和RDD的思路，我想当初可能是CDH想跟spark竞争一下内存计算这块的市场，后来发现争不过spark，现在也就处于半开发半维护的状态了。  
+从核心上来说，执行原理跟hive完全不一样，  
+hive是把sql转译成java，编译了jar包提交给hadoop，剩下的事情就是hadoop的mr的事了，hive只需要等着获取结果就好了。  
+而impala则调用C语言层的libhdfs来直接访问HDFS，从NN获取到数据块信息后，直接将数据块读入内存，会使用hadoop的一个配置项叫dfs.client.short.read.circuit。看得出来，这是一个client端配置，作用是直接读取本地的数据块而不是通过HDFS读取整合后的文件。所以impala需要在每个dn节点都安装impalad去完成本地读取的工作。数据块读进内存之后就开始做有向无环图，完成计算之后会将热数据保存在内存里供下次读取。
+
 ## Impala优缺点
 * Impala优点  
 基于内存运算，不需要把中间结果写入磁盘，省掉了大量的I/O开销。  
