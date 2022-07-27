@@ -12,6 +12,25 @@ Cloudera成立于2008年，在企业和大型机构在寻求解决棘手的大�
 4. Impala没有再使用缓慢的Hive+MR批处理，而且通过使用与商用并行关系数据库中类似的分布式查询引擎，可以直接从HDFS或HBase中的Select、Join和统计函数查询数据，能查询存储在Hadoop的HDFS和HBase中的PB级大数据，从而大大降低延迟；      
 5. Impala最大的卖点就是——快速
 
+## Impala的定位  
+Impala 是可用于查询大数据的工具的补充。  
+Impala 不会替代基于 MapReduce 构建的批处理框架，例如 Hive。Hive 和其他基于 MapReduce 构建的框架最适合长时间运行的批处理作业，例如涉及提取、转换和加载 (ETL) 类型作业的批处理。
+
+## Impala优缺点
+* Impala优点  
+基于内存运算，不需要把中间结果写入磁盘，省掉了大量的I/O开销。  
+无需转换为Mapreduce,直接访问存储在HDFS, HBase中的数据进行作业调度，速度快。  
+使用了支持Data locality的I/O调度机制，尽可能地将数据和计算分配在同一台机器上进行，减少了网络开销。  
+支持各种文件格式,如TEXTFILE、SEQUENCEFILE、RCFile. Parqueto  
+可以访问hive的metastore,对hive数据直接做数据分析。
+
+* Impala缺点  
+对内存的依赖大，且完全依赖于hive。  
+实践中，分区超过1万，性能严重下降。  
+只能读取文本文件，而不能直接读取自定义二进制文件。  
+每当新的记录/文件被添加到HDFS中的数据目录时，该表需要被刷新。  
+
+
 ## Impala系统架构  
 Impala主要由Impalad， State Store和CLI组成。  
 
